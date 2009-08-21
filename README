@@ -1,0 +1,54 @@
+nginx HTTP redis module
+--
+
+Description:
+--
+
+The nginx HTTP redis module for caching with redis,
+http://code.google.com/p/redis/.
+
+The redis protocol
+(http://code.google.com/p/redis/wiki/ProtocolSpecification)
+not yet fully implemented.
+
+
+
+Installation:
+--
+
+You'll need to re-compile Nginx from source to include this module.
+Modify your compile of Nginx by adding the following directive
+(modified to suit your path of course):
+
+./configure --add-module=/absolute/path/to/ngx_http_redis
+make
+make install
+
+
+
+Usage:
+--
+
+http
+{
+ ...
+        server {
+                location / {
+                        set $redis_key  "$uri?$args";
+                        redis_pass      127.0.0.1:6379;
+                        error_page      404 502 504 = @fallback;
+                }
+
+                location @fallback {
+                        proxy_pass      backed;
+                }
+        }
+}
+
+
+
+Thanks:
+--
+
+Maxim Dounin
+Vsevolod Stakhov
