@@ -9,6 +9,7 @@
 #include <ngx_config.h>
 #include <ngx_core.h>
 #include <ngx_http.h>
+#include <nginx.h>
 
 
 typedef struct {
@@ -142,7 +143,7 @@ ngx_http_redis_handler(ngx_http_request_t *r)
     ngx_int_t                       rc;
     ngx_http_upstream_t            *u;
     ngx_http_redis_ctx_t           *ctx;
-    ngx_http_redis_loc_conf_t      *mlcf;
+    ngx_http_redis_loc_conf_t      *rlcf;
 
     if (!(r->method & (NGX_HTTP_GET|NGX_HTTP_HEAD))) {
         return NGX_HTTP_NOT_ALLOWED;
@@ -169,9 +170,9 @@ ngx_http_redis_handler(ngx_http_request_t *r)
 
     u->output.tag = (ngx_buf_tag_t) &ngx_http_redis_module;
 
-    mlcf = ngx_http_get_module_loc_conf(r, ngx_http_redis_module);
+    rlcf = ngx_http_get_module_loc_conf(r, ngx_http_redis_module);
 
-    u->conf = &mlcf->upstream;
+    u->conf = &rlcf->upstream;
 
     u->create_request = ngx_http_redis_create_request;
     u->reinit_request = ngx_http_redis_reinit_request;
@@ -193,6 +194,10 @@ ngx_http_redis_handler(ngx_http_request_t *r)
     u->input_filter = ngx_http_redis_filter;
     u->input_filter_ctx = ctx;
 
+#if defined nginx_version && nginx_version >= 8011
+    r->main->count++;
+#endif
+
     ngx_http_upstream_init(r);
 
     return NGX_DONE;
@@ -208,11 +213,11 @@ ngx_http_redis_create_request(ngx_http_request_t *r)
     ngx_chain_t                    *cl;
     ngx_http_redis_ctx_t           *ctx;
     ngx_http_variable_value_t      *vv;
-    ngx_http_redis_loc_conf_t      *mlcf;
+    ngx_http_redis_loc_conf_t      *rlcf;
 
-    mlcf = ngx_http_get_module_loc_conf(r, ngx_http_redis_module);
+    rlcf = ngx_http_get_module_loc_conf(r, ngx_http_redis_module);
 
-    vv = ngx_http_get_indexed_variable(r, mlcf->index);
+    vv = ngx_http_get_indexed_variable(r, rlcf->index);
 
     if (vv == NULL || vv->not_found || vv->len == 0) {
         ngx_log_error(NGX_LOG_ERR, r->connection->log, 0,
@@ -545,13 +550,13 @@ ngx_http_redis_merge_loc_conf(ngx_conf_t *cf, void *parent, void *child)
 static char *
 ngx_http_redis_pass(ngx_conf_t *cf, ngx_command_t *cmd, void *conf)
 {
-    ngx_http_redis_loc_conf_t *mlcf = conf;
+    ngx_http_redis_loc_conf_t *rlcf = conf;
 
     ngx_str_t                 *value;
     ngx_url_t                  u;
     ngx_http_core_loc_conf_t  *clcf;
 
-    if (mlcf->upstream.upstream) {
+    if (rlcf->upstream.upstream) {
         return "is duplicate";
     }
 
@@ -562,8 +567,8 @@ ngx_http_redis_pass(ngx_conf_t *cf, ngx_command_t *cmd, void *conf)
     u.url = value[1];
     u.no_resolve = 1;
 
-    mlcf->upstream.upstream = ngx_http_upstream_add(cf, &u, 0);
-    if (mlcf->upstream.upstream == NULL) {
+    rlcf->upstream.upstream = ngx_http_upstream_add(cf, &u, 0);
+    if (rlcf->upstream.upstream == NULL) {
         return NGX_CONF_ERROR;
     }
 
@@ -575,9 +580,9 @@ ngx_http_redis_pass(ngx_conf_t *cf, ngx_command_t *cmd, void *conf)
         clcf->auto_redirect = 1;
     }
 
-    mlcf->index = ngx_http_get_variable_index(cf, &ngx_http_redis_key);
+    rlcf->index = ngx_http_get_variable_index(cf, &ngx_http_redis_key);
 
-    if (mlcf->index == NGX_ERROR) {
+    if (rlcf->index == NGX_ERROR) {
         return NGX_CONF_ERROR;
     }
 
