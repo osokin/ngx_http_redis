@@ -1,0 +1,8 @@
+
+Changes with ngx_http_redis 0.1.1                               31 Aug 2009
+
+    *) Change: compatibility with nginx 0.8.11.
+
+    *) Cleanup: mlcf -> rlcf, i.e.
+       (memcached location configuration) -> redis...
+
