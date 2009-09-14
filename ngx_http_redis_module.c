@@ -159,18 +159,36 @@ ngx_http_redis_handler(ngx_http_request_t *r)
         return NGX_HTTP_INTERNAL_SERVER_ERROR;
     }
 
+#if defined nginx_version && nginx_version >= 8011
     if (ngx_http_upstream_create(r) != NGX_OK) {
+#else
+    rlcf = ngx_http_get_module_loc_conf(r, ngx_http_redis_module);
+
+    u = ngx_pcalloc(r->pool, sizeof(ngx_http_upstream_t));
+    if (u == NULL) {
+#endif
         return NGX_HTTP_INTERNAL_SERVER_ERROR;
     }
 
+#if defined nginx_version && nginx_version >= 8011
     u = r->upstream;
+#endif
 
     u->schema.len = sizeof("redis://") - 1;
     u->schema.data = (u_char *) "redis://";
 
+#if defined nginx_version && nginx_version >= 8011
     u->output.tag = (ngx_buf_tag_t) &ngx_http_redis_module;
+#else
+     u->peer.log = r->connection->log;
+     u->peer.log_error = NGX_ERROR_ERR;
+#endif
 
+#if defined nginx_version && nginx_version >= 8011
     rlcf = ngx_http_get_module_loc_conf(r, ngx_http_redis_module);
+#else
+    u->output.tag = (ngx_buf_tag_t) &ngx_http_redis_module;
+#endif
 
     u->conf = &rlcf->upstream;
 
@@ -179,6 +197,10 @@ ngx_http_redis_handler(ngx_http_request_t *r)
     u->process_header = ngx_http_redis_process_header;
     u->abort_request = ngx_http_redis_abort_request;
     u->finalize_request = ngx_http_redis_finalize_request;
+
+#if defined nginx_version && nginx_version < 8011
+   r->upstream = u;
+#endif
 
     ctx = ngx_palloc(r->pool, sizeof(ngx_http_redis_ctx_t));
     if (ctx == NULL) {
@@ -466,7 +488,11 @@ ngx_http_redis_create_loc_conf(ngx_conf_t *cf)
 
     conf = ngx_pcalloc(cf->pool, sizeof(ngx_http_redis_loc_conf_t));
     if (conf == NULL) {
+#if defined nginx_version && nginx_version >= 8011
         return NULL;
+#else
+        return NGX_CONF_ERROR;
+#endif
     }
 
     /*
