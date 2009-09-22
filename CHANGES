@@ -1,4 +1,13 @@
 
+Changes with ngx_http_redis 0.2.0                               19 Sep 2009
+
+    *) Feature: the $redis_db variable: now the ngx_http_redis
+       module uses the $redis_db variable value as the parameter
+       for SELECT command.
+
+    *) Cleanup: style/spaces fixes.
+
+
 Changes with ngx_http_redis 0.1.2                               14 Sep 2009
 
     *) Change: backport to 0.7.61.

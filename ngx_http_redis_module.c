@@ -15,6 +15,7 @@
 typedef struct {
     ngx_http_upstream_conf_t   upstream;
     ngx_int_t                  index;
+    ngx_int_t                  db;
 } ngx_http_redis_loc_conf_t;
 
 
@@ -131,6 +132,7 @@ ngx_module_t  ngx_http_redis_module = {
 
 
 static ngx_str_t  ngx_http_redis_key = ngx_string("redis_key");
+static ngx_str_t  ngx_http_redis_db  = ngx_string("redis_db");
 
 
 #define NGX_HTTP_REDIS_END   (sizeof(ngx_http_redis_end) - 1)
@@ -180,8 +182,8 @@ ngx_http_redis_handler(ngx_http_request_t *r)
 #if defined nginx_version && nginx_version >= 8011
     u->output.tag = (ngx_buf_tag_t) &ngx_http_redis_module;
 #else
-     u->peer.log = r->connection->log;
-     u->peer.log_error = NGX_ERROR_ERR;
+    u->peer.log = r->connection->log;
+    u->peer.log_error = NGX_ERROR_ERR;
 #endif
 
 #if defined nginx_version && nginx_version >= 8011
@@ -199,7 +201,7 @@ ngx_http_redis_handler(ngx_http_request_t *r)
     u->finalize_request = ngx_http_redis_finalize_request;
 
 #if defined nginx_version && nginx_version < 8011
-   r->upstream = u;
+    r->upstream = u;
 #endif
 
     ctx = ngx_palloc(r->pool, sizeof(ngx_http_redis_ctx_t));
@@ -234,22 +236,33 @@ ngx_http_redis_create_request(ngx_http_request_t *r)
     ngx_buf_t                      *b;
     ngx_chain_t                    *cl;
     ngx_http_redis_ctx_t           *ctx;
-    ngx_http_variable_value_t      *vv;
+    ngx_http_variable_value_t      *vv[2];
     ngx_http_redis_loc_conf_t      *rlcf;
 
     rlcf = ngx_http_get_module_loc_conf(r, ngx_http_redis_module);
 
-    vv = ngx_http_get_indexed_variable(r, rlcf->index);
+    vv[0] = ngx_http_get_indexed_variable(r, rlcf->db);
 
-    if (vv == NULL || vv->not_found || vv->len == 0) {
+    if (vv[0] == NULL || vv[0]->not_found || vv[0]->len == 0) {
+        ngx_log_debug1(NGX_LOG_DEBUG_HTTP, r->connection->log, 0,
+                       "select 0 redis database" );
+        len = sizeof("select 0") - 1;
+    } else {
+        len = sizeof("select ") - 1 + vv[0]->len;
+    }
+    len += sizeof(CRLF) - 1;
+
+    vv[1] = ngx_http_get_indexed_variable(r, rlcf->index);
+
+    if (vv[1] == NULL || vv[1]->not_found || vv[1]->len == 0) {
         ngx_log_error(NGX_LOG_ERR, r->connection->log, 0,
                       "the \"$redis_key\" variable is not set");
         return NGX_ERROR;
     }
 
-    escape = 2 * ngx_escape_uri(NULL, vv->data, vv->len, NGX_ESCAPE_REDIS);
+    escape = 2 * ngx_escape_uri(NULL, vv[1]->data, vv[1]->len, NGX_ESCAPE_REDIS);
 
-    len = sizeof("get ") - 1 + vv->len + escape + sizeof(CRLF) - 1;
+    len += sizeof("get ") - 1 + vv[1]->len + escape + sizeof(CRLF) - 1;
 
     b = ngx_create_temp_buf(r->pool, len);
     if (b == NULL) {
@@ -266,6 +279,25 @@ ngx_http_redis_create_request(ngx_http_request_t *r)
 
     r->upstream->request_bufs = cl;
 
+    *b->last++ = 's'; *b->last++ = 'e'; *b->last++ = 'l'; *b->last++ = 'e';
+    *b->last++ = 'c'; *b->last++ = 't'; *b->last++ = ' ';
+
+    ctx = ngx_http_get_module_ctx(r, ngx_http_redis_module);
+
+    ctx->key.data = b->last;
+
+    if (vv[0] == NULL || vv[0]->not_found || vv[0]->len == 0) {
+        ngx_log_debug1(NGX_LOG_DEBUG_HTTP, r->connection->log, 0,
+                       "select 0 redis database" );
+        *b->last++ = '0';
+    } else {
+        b->last = ngx_copy(b->last, vv[0]->data, vv[0]->len);
+        ctx->key.len = b->last - ctx->key.data;
+    }
+
+    *b->last++ = CR; *b->last++ = LF;
+
+
     *b->last++ = 'g'; *b->last++ = 'e'; *b->last++ = 't'; *b->last++ = ' ';
 
     ctx = ngx_http_get_module_ctx(r, ngx_http_redis_module);
@@ -273,10 +305,10 @@ ngx_http_redis_create_request(ngx_http_request_t *r)
     ctx->key.data = b->last;
 
     if (escape == 0) {
-        b->last = ngx_copy(b->last, vv->data, vv->len);
+        b->last = ngx_copy(b->last, vv[1]->data, vv[1]->len);
 
     } else {
-        b->last = (u_char *) ngx_escape_uri(b->last, vv->data, vv->len,
+        b->last = (u_char *) ngx_escape_uri(b->last, vv[1]->data, vv[1]->len,
                                             NGX_ESCAPE_REDIS);
     }
 
@@ -329,6 +361,20 @@ found:
     p = u->buffer.pos;
 
     ctx = ngx_http_get_module_ctx(r, ngx_http_redis_module);
+
+    if (ngx_strcmp(p, "-ERR") == 0) {
+        ngx_log_error(NGX_LOG_INFO, r->connection->log, 0,
+                      "error was received from redis");
+
+        u->headers_in.status_n = 404;
+        u->state->status = 404;
+
+        return NGX_OK;
+    }
+
+    if (ngx_strcmp(p, "+OK\x0d") == 0) {
+        p += sizeof("+OK") - 1 + sizeof(CRLF) - 1;
+    }
 
     if (ngx_strcmp(p, "$-1\x0d") == 0) {
         ngx_log_error(NGX_LOG_INFO, r->connection->log, 0,
@@ -526,6 +572,7 @@ ngx_http_redis_create_loc_conf(ngx_conf_t *cf)
     conf->upstream.pass_request_body = 0;
 
     conf->index = NGX_CONF_UNSET;
+    conf->db = NGX_CONF_UNSET;
 
     return conf;
 }
@@ -569,6 +616,10 @@ ngx_http_redis_merge_loc_conf(ngx_conf_t *cf, void *parent, void *child)
         conf->index = prev->index;
     }
 
+    if (conf->db == NGX_CONF_UNSET) {
+        conf->db = prev->db;
+    }
+
     return NGX_CONF_OK;
 }
 
@@ -609,6 +660,12 @@ ngx_http_redis_pass(ngx_conf_t *cf, ngx_command_t *cmd, void *conf)
     rlcf->index = ngx_http_get_variable_index(cf, &ngx_http_redis_key);
 
     if (rlcf->index == NGX_ERROR) {
+        return NGX_CONF_ERROR;
+    }
+
+    rlcf->db = ngx_http_get_variable_index(cf, &ngx_http_redis_db);
+
+    if (rlcf->db == NGX_ERROR) {
         return NGX_CONF_ERROR;
     }
 

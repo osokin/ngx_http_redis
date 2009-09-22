@@ -9,7 +9,7 @@ http://code.google.com/p/redis/.
 
 The redis protocol
 (http://code.google.com/p/redis/wiki/ProtocolSpecification)
-not yet fully implemented.
+not yet fully implemented, but GET and SELECT commands only.
 
 
 
@@ -34,6 +34,7 @@ http
  ...
         server {
                 location / {
+			set $redis_db   "0";
                         set $redis_key  "$uri?$args";
                         redis_pass      127.0.0.1:6379;
                         error_page      404 502 504 = @fallback;
@@ -52,6 +53,6 @@ Thanks to:
 
 Maxim Dounin
 Vsevolod Stakhov
-Evan Miller for his Guide To Nginx Module Development and Advanced Topics
-In Nginx Module Development
-Valery Kholodkov for his Nginx modules development 
+Evan Miller for his "Guide To Nginx Module Development" and "Advanced Topics
+In Nginx Module Development"
+Valery Kholodkov for his "Nginx modules development"
