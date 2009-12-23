@@ -1,4 +1,16 @@
 
+Changes with ngx_http_redis 0.3.0                               23 Dec 2009
+
+    *) Compatibility with latest stable (0.7.64) and
+       development 0.8.31 releases.
+
+    *) Bugfix: multiple commands issue with interoperability with
+       redis; the bug had appeared in 0.2.0.
+
+    *) Feature: redis_bind directive merge from original
+       memcached module (for 0.8.22 and later).
+
+
 Changes with ngx_http_redis 0.2.0                               19 Sep 2009
 
     *) Feature: the $redis_db variable: now the ngx_http_redis
