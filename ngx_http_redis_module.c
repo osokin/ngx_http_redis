@@ -61,6 +61,15 @@ static ngx_command_t  ngx_http_redis_commands[] = {
       0,
       NULL },
 
+#if defined nginx_version && nginx_version >= 8022
+    { ngx_string("redis_bind"),
+      NGX_HTTP_MAIN_CONF|NGX_HTTP_SRV_CONF|NGX_HTTP_LOC_CONF|NGX_CONF_TAKE1,
+      ngx_http_upstream_bind_set_slot,
+      NGX_HTTP_LOC_CONF_OFFSET,
+      offsetof(ngx_http_redis_loc_conf_t, upstream.local),
+      NULL },
+#endif
+
     { ngx_string("redis_connect_timeout"),
       NGX_HTTP_MAIN_CONF|NGX_HTTP_SRV_CONF|NGX_HTTP_LOC_CONF|NGX_CONF_TAKE1,
       ngx_conf_set_msec_slot,
@@ -244,7 +253,7 @@ ngx_http_redis_create_request(ngx_http_request_t *r)
     vv[0] = ngx_http_get_indexed_variable(r, rlcf->db);
 
     if (vv[0] == NULL || vv[0]->not_found || vv[0]->len == 0) {
-        ngx_log_debug1(NGX_LOG_DEBUG_HTTP, r->connection->log, 0,
+        ngx_log_debug0(NGX_LOG_DEBUG_HTTP, r->connection->log, 0,
                        "select 0 redis database" );
         len = sizeof("select 0") - 1;
     } else {
@@ -287,7 +296,7 @@ ngx_http_redis_create_request(ngx_http_request_t *r)
     ctx->key.data = b->last;
 
     if (vv[0] == NULL || vv[0]->not_found || vv[0]->len == 0) {
-        ngx_log_debug1(NGX_LOG_DEBUG_HTTP, r->connection->log, 0,
+        ngx_log_debug0(NGX_LOG_DEBUG_HTTP, r->connection->log, 0,
                        "select 0 redis database" );
         *b->last++ = '0';
     } else {
@@ -334,6 +343,7 @@ static ngx_int_t
 ngx_http_redis_process_header(ngx_http_request_t *r)
 {
     u_char                    *p, *len;
+    u_int                      c = 0;
     ngx_str_t                  line;
     ngx_http_upstream_t       *u;
     ngx_http_redis_ctx_t      *ctx;
@@ -342,7 +352,10 @@ ngx_http_redis_process_header(ngx_http_request_t *r)
 
     for (p = u->buffer.pos; p < u->buffer.last; p++) {
         if (*p == LF) {
-            goto found;
+            c++;
+            if (c == 2) {
+                goto found;
+            }
         }
     }
 
@@ -362,7 +375,7 @@ found:
 
     ctx = ngx_http_get_module_ctx(r, ngx_http_redis_module);
 
-    if (ngx_strcmp(p, "-ERR") == 0) {
+    if (ngx_strncmp(p, "-ERR", sizeof("-ERR") - 1) == 0) {
         ngx_log_error(NGX_LOG_INFO, r->connection->log, 0,
                       "error was received from redis");
 
@@ -372,11 +385,11 @@ found:
         return NGX_OK;
     }
 
-    if (ngx_strcmp(p, "+OK\x0d") == 0) {
-        p += sizeof("+OK") - 1 + sizeof(CRLF) - 1;
+    if (ngx_strncmp(p, "+OK\r\n", sizeof("+OK\r\n") - 1) == 0) {
+        p += sizeof("+OK\r\n") - 1;
     }
 
-    if (ngx_strcmp(p, "$-1\x0d") == 0) {
+    if (ngx_strncmp(p, "$-1", sizeof("$-1") - 1) == 0) {
         ngx_log_error(NGX_LOG_INFO, r->connection->log, 0,
                       "key: \"%V\" was not found by redis", &ctx->key);
 
