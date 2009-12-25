@@ -343,17 +343,29 @@ static ngx_int_t
 ngx_http_redis_process_header(ngx_http_request_t *r)
 {
     u_char                    *p, *len;
-    u_int                      c = 0;
+    u_int                      c, try;
     ngx_str_t                  line;
     ngx_http_upstream_t       *u;
     ngx_http_redis_ctx_t      *ctx;
 
+    c = try = 0;
+
     u = r->upstream;
+
+    p = u->buffer.pos;
+
+    if (*p == '+') {
+        try = 2;
+    } else if (*p == '-') {
+        try = 1;
+    } else {
+        goto no_valid;
+    }
 
     for (p = u->buffer.pos; p < u->buffer.last; p++) {
         if (*p == LF) {
             c++;
-            if (c == 2) {
+            if (c == try) {
                 goto found;
             }
         }
@@ -376,11 +388,13 @@ found:
     ctx = ngx_http_get_module_ctx(r, ngx_http_redis_module);
 
     if (ngx_strncmp(p, "-ERR", sizeof("-ERR") - 1) == 0) {
-        ngx_log_error(NGX_LOG_INFO, r->connection->log, 0,
-                      "error was received from redis");
+        ngx_log_error(NGX_LOG_ERR, r->connection->log, 0,
+                      "redis sent error in response \"%V\" "
+                      "for key \"%V\"",
+                      &line, &ctx->key);
 
-        u->headers_in.status_n = 404;
-        u->state->status = 404;
+        u->headers_in.status_n = 502;
+        u->state->status = 502;
 
         return NGX_OK;
     }
