@@ -1,4 +1,14 @@
 
+Changes with ngx_http_redis 0.3.1                               26 Dec 2009
+
+    *) Change: return 502 instead of 404 for error.
+
+    *) Change: better error messages diagnostics.
+
+    *) Bugfix: improve interoperability with redis; the bug had
+       appeared in 0.3.0.
+
+
 Changes with ngx_http_redis 0.3.0                               23 Dec 2009
 
     *) Compatibility with latest stable (0.7.64) and
