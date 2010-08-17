@@ -1,4 +1,16 @@
 
+Changes with ngx_http_redis 0.3.2                               17 Aug 2010
+
+    *) Bugfix: ngx_http_redis_module might issue the error message 
+       "redis sent invalid trailer".  For more information see:
+       $ diff -ruN \
+             nginx-0.8.34/src/http/modules/ngx_http_memcached_module.c \
+             nginx-0.8.35/src/http/modules/ngx_http_memcached_module.c
+
+    *) Change: now the $redis_db set is not obligatory; default
+       value is "0".
+
+
 Changes with ngx_http_redis 0.3.1                               26 Dec 2009
 
     *) Change: return 502 instead of 404 for error.

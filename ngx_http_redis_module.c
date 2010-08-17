@@ -1,5 +1,6 @@
 
 /*
+ * Copyright (C) Igor Sysoev
  * Copyright (C) Sergey A. Osokin
  */
 
@@ -483,10 +484,15 @@ ngx_http_redis_filter(void *data, ssize_t bytes)
         {
             ngx_log_error(NGX_LOG_ERR, ctx->request->connection->log, 0,
                           "redis sent invalid trailer");
+
+            u->length = 0;
+            ctx->rest = 0;
+
+            return NGX_OK;
         }
 
-        u->length = 0;
-        ctx->rest = 0;
+        u->length -= bytes;
+        ctx->rest -= bytes;
 
         return NGX_OK;
     }
@@ -687,12 +693,6 @@ ngx_http_redis_pass(ngx_conf_t *cf, ngx_command_t *cmd, void *conf)
     rlcf->index = ngx_http_get_variable_index(cf, &ngx_http_redis_key);
 
     if (rlcf->index == NGX_ERROR) {
-        return NGX_CONF_ERROR;
-    }
-
-    rlcf->db = ngx_http_get_variable_index(cf, &ngx_http_redis_db);
-
-    if (rlcf->db == NGX_ERROR) {
         return NGX_CONF_ERROR;
     }
 
