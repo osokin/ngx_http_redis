@@ -186,8 +186,12 @@ ngx_http_redis_handler(ngx_http_request_t *r)
     u = r->upstream;
 #endif
 
+#if defined nginx_version && nginx_version >= 8037
+    ngx_str_set(&u->schema, "redis://");
+#else
     u->schema.len = sizeof("redis://") - 1;
     u->schema.data = (u_char *) "redis://";
+#endif
 
 #if defined nginx_version && nginx_version >= 8011
     u->output.tag = (ngx_buf_tag_t) &ngx_http_redis_module;
@@ -695,6 +699,8 @@ ngx_http_redis_pass(ngx_conf_t *cf, ngx_command_t *cmd, void *conf)
     if (rlcf->index == NGX_ERROR) {
         return NGX_CONF_ERROR;
     }
+
+    rlcf->db = ngx_http_get_variable_index(cf, &ngx_http_redis_db);
 
     return NGX_CONF_OK;
 }
