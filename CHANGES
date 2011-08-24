@@ -1,3 +1,17 @@
+Changes with ngx_http_redis 0.3.4                               24 Aug 2011
+
+    *) Change: better error messages diagnostics in select phase.
+
+    *) Add more comments in source code.
+
+    *) Bugfix: fix interaction with redis if redis_db was unused.
+       Found by Sergey Makarov.
+       Thanks to Igor Sysoev.
+
+    *) Feature: add test suite for redis backend.
+       Thanks to Maxim Dounin.
+
+
 Changes with ngx_http_redis 0.3.3                               07 Jun 2011
 
     *) Bugfix: fix interaction with redis if redis_db was used.

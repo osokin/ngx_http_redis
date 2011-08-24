@@ -36,6 +36,7 @@ static void ngx_http_redis_abort_request(ngx_http_request_t *r);
 static void ngx_http_redis_finalize_request(ngx_http_request_t *r,
     ngx_int_t rc);
 
+static ngx_int_t ngx_http_redis_add_variables(ngx_conf_t *cf);
 static void *ngx_http_redis_create_loc_conf(ngx_conf_t *cf);
 static char *ngx_http_redis_merge_loc_conf(ngx_conf_t *cf,
     void *parent, void *child);
@@ -111,7 +112,7 @@ static ngx_command_t  ngx_http_redis_commands[] = {
 
 
 static ngx_http_module_t  ngx_http_redis_module_ctx = {
-    NULL,                                  /* preconfiguration */
+    ngx_http_redis_add_variables,          /* preconfiguration */
     NULL,                                  /* postconfiguration */
 
     NULL,                                  /* create main configuration */
@@ -143,6 +144,7 @@ ngx_module_t  ngx_http_redis_module = {
 
 static ngx_str_t  ngx_http_redis_key = ngx_string("redis_key");
 static ngx_str_t  ngx_http_redis_db  = ngx_string("redis_db");
+static ngx_uint_t ngx_http_redis_db_index;
 
 
 #define NGX_HTTP_REDIS_END   (sizeof(ngx_http_redis_end) - 1)
@@ -255,29 +257,40 @@ ngx_http_redis_create_request(ngx_http_request_t *r)
 
     rlcf = ngx_http_get_module_loc_conf(r, ngx_http_redis_module);
 
-    vv[0] = ngx_http_get_indexed_variable(r, rlcf->db);
+    vv[0] = ngx_http_get_indexed_variable(r, ngx_http_redis_db_index);
 
+    /*
+     * If user do not select redis database in nginx.conf by redis_db
+     * variable, just add size of "select 0" to request.  This is add
+     * some overhead in talk with redis, but this way simplify parsing
+     * the redis answer in ngx_http_redis_process_header().
+     */
     if (vv[0] == NULL || vv[0]->not_found || vv[0]->len == 0) {
         ngx_log_debug0(NGX_LOG_DEBUG_HTTP, r->connection->log, 0,
                        "select 0 redis database" );
         len = sizeof("select 0") - 1;
     } else {
         len = sizeof("select ") - 1 + vv[0]->len;
+        ngx_log_debug1(NGX_LOG_DEBUG_HTTP, r->connection->log, 0,
+                       "select %s redis database", vv[0]->data);
     }
     len += sizeof(CRLF) - 1;
 
     vv[1] = ngx_http_get_indexed_variable(r, rlcf->index);
 
+    /* If nginx.conf have no redis_key return error. */
     if (vv[1] == NULL || vv[1]->not_found || vv[1]->len == 0) {
         ngx_log_error(NGX_LOG_ERR, r->connection->log, 0,
                       "the \"$redis_key\" variable is not set");
         return NGX_ERROR;
     }
 
+    /* Count have space required escape symbols. */
     escape = 2 * ngx_escape_uri(NULL, vv[1]->data, vv[1]->len, NGX_ESCAPE_REDIS);
 
     len += sizeof("get ") - 1 + vv[1]->len + escape + sizeof(CRLF) - 1;
 
+    /* Create temporary buffer for request with size len. */
     b = ngx_create_temp_buf(r->pool, len);
     if (b == NULL) {
         return NGX_ERROR;
@@ -293,13 +306,19 @@ ngx_http_redis_create_request(ngx_http_request_t *r)
 
     r->upstream->request_bufs = cl;
 
+    /* Add "select " for request. */
     *b->last++ = 's'; *b->last++ = 'e'; *b->last++ = 'l'; *b->last++ = 'e';
     *b->last++ = 'c'; *b->last++ = 't'; *b->last++ = ' ';
 
+    /* Get context redis_db from configuration file. */
     ctx = ngx_http_get_module_ctx(r, ngx_http_redis_module);
 
     ctx->key.data = b->last;
 
+    /*
+     * Add "0" as redis number db to request if redis_db undefined,
+     * othervise add real number from context.
+     */
     if (vv[0] == NULL || vv[0]->not_found || vv[0]->len == 0) {
         ngx_log_debug0(NGX_LOG_DEBUG_HTTP, r->connection->log, 0,
                        "select 0 redis database" );
@@ -307,16 +326,26 @@ ngx_http_redis_create_request(ngx_http_request_t *r)
     } else {
         b->last = ngx_copy(b->last, vv[0]->data, vv[0]->len);
         ctx->key.len = b->last - ctx->key.data;
+        ngx_log_debug1(NGX_LOG_DEBUG_HTTP, r->connection->log, 0,
+                       "select %V redis database", &ctx->key);
     }
 
+    /* Add "\r\n". */
     *b->last++ = CR; *b->last++ = LF;
 
 
+    /* Add "get" command with space. */
     *b->last++ = 'g'; *b->last++ = 'e'; *b->last++ = 't'; *b->last++ = ' ';
 
+    /* Get context redis_key from nginx.conf. */
     ctx = ngx_http_get_module_ctx(r, ngx_http_redis_module);
 
     ctx->key.data = b->last;
+
+    /*
+     * If no escape symbols then copy data as is, othervise use
+     * escape-copy function.
+     */
 
     if (escape == 0) {
         b->last = ngx_copy(b->last, vv[1]->data, vv[1]->len);
@@ -331,7 +360,14 @@ ngx_http_redis_create_request(ngx_http_request_t *r)
     ngx_log_debug1(NGX_LOG_DEBUG_HTTP, r->connection->log, 0,
                    "http redis request: \"%V\"", &ctx->key);
 
+    /* Add one more "\r\n". */
     *b->last++ = CR; *b->last++ = LF;
+
+    /*
+     * Summary, the request looks like this:
+     * "select $redis_db\r\nget $redis_key\r\n", where
+     * $redis_db and $redis_key are variable's values.
+     */
 
     return NGX_OK;
 }
@@ -359,6 +395,22 @@ ngx_http_redis_process_header(ngx_http_request_t *r)
 
     p = u->buffer.pos;
 
+    /*
+     * Good answer from redis should looks like this:
+     * "+OK\r\n$8\r\n12345678\r\n"
+     *
+     * Here is:
+     * "+OK" is answer for first command "select 0".
+     * Next two strings are answer for command "get $redis_key", where
+     *
+     * "$8" is length of following next string and
+     * "12345678" is value of $redis_key, the string.
+     *
+     * So, if the first symbol is:
+     * "+" (good answer) - try to find 2 strings;
+     * "-" (bad answer) - try to find 1 string;
+     * othervise answer is invalid. 
+     */
     if (*p == '+') {
         try = 2;
     } else if (*p == '-') {
@@ -390,8 +442,10 @@ found:
 
     p = u->buffer.pos;
 
+    /* Get context of redis_key for future error messages, i.e. ctx->key */
     ctx = ngx_http_get_module_ctx(r, ngx_http_redis_module);
 
+    /* Compare pointer and error message, if yes set 502 and return */
     if (ngx_strncmp(p, "-ERR", sizeof("-ERR") - 1) == 0) {
         ngx_log_error(NGX_LOG_ERR, r->connection->log, 0,
                       "redis sent error in response \"%V\" "
@@ -404,10 +458,16 @@ found:
         return NGX_OK;
     }
 
+    /* Compare pointer and good message, if yes move on the pointer */
     if (ngx_strncmp(p, "+OK\r\n", sizeof("+OK\r\n") - 1) == 0) {
         p += sizeof("+OK\r\n") - 1;
     }
 
+    /*
+     * Compare pointer and "get" answer.  As said before, "$" means, that
+     * next symbols are length for upcoming key, "-1" means no key.
+     * Set 404 and return.
+     */
     if (ngx_strncmp(p, "$-1", sizeof("$-1") - 1) == 0) {
         ngx_log_error(NGX_LOG_INFO, r->connection->log, 0,
                       "key: \"%V\" was not found by redis", &ctx->key);
@@ -418,15 +478,21 @@ found:
         return NGX_OK;
     }
 
+    /* Compare pointer and "get" answer, if "$"... */
     if (ngx_strncmp(p, "$", sizeof("$") - 1) == 0) {
 
+        /* move on pointer */
         p += sizeof("$") - 1;
 
+	/* set len to pointer */
         len = p;
 
+	/* try to find end of string */
         while (*p && *p++ != CR) { /* void */ }
 
+	/* get the length of upcoming redis_key value, convert from ascii */
         r->headers_out.content_length_n = ngx_atoof(len, p - len - 1);
+	/* if the length is empty, return */
         if (r->headers_out.content_length_n == -1) {
             ngx_log_error(NGX_LOG_ERR, r->connection->log, 0,
                           "redis sent invalid length in response \"%V\" "
@@ -435,8 +501,10 @@ found:
             return NGX_HTTP_UPSTREAM_INVALID_HEADER;
         }
 
+	/* The length of answer is not empty, set 200 */
         u->headers_in.status_n = 200;
         u->state->status = 200;
+	/* Set position to the first symbol of data and return */
         u->buffer.pos = p + 1;
 
         return NGX_OK;
@@ -705,3 +773,37 @@ ngx_http_redis_pass(ngx_conf_t *cf, ngx_command_t *cmd, void *conf)
     return NGX_CONF_OK;
 }
 
+
+static ngx_int_t
+ngx_http_redis_reset_variable(ngx_http_request_t *r,
+    ngx_http_variable_value_t *v, uintptr_t data)
+{
+    *v = ngx_http_variable_null_value;
+
+    return NGX_OK;
+}
+
+
+static ngx_int_t
+ngx_http_redis_add_variables(ngx_conf_t *cf)
+{
+    ngx_int_t             n;
+    ngx_http_variable_t  *var;
+
+    var = ngx_http_add_variable(cf, &ngx_http_redis_db,
+                                NGX_HTTP_VAR_CHANGEABLE);
+    if (var == NULL) {
+        return NGX_ERROR;
+    }
+
+    var->get_handler = ngx_http_redis_reset_variable;
+
+    n = ngx_http_get_variable_index(cf, &ngx_http_redis_db);
+    if (n == NGX_ERROR) {
+        return NGX_ERROR;
+    }
+
+    ngx_http_redis_db_index = n;
+
+    return NGX_OK;
+}
