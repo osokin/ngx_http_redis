@@ -474,6 +474,9 @@ found:
 
         u->headers_in.status_n = 404;
         u->state->status = 404;
+#if defined nginx_version && nginx_version >= 1001004
+        u->keepalive = 1;
+#endif
 
         return NGX_OK;
     }
@@ -490,10 +493,17 @@ found:
 	/* try to find end of string */
         while (*p && *p++ != CR) { /* void */ }
 
-	/* get the length of upcoming redis_key value, convert from ascii */
+        /*
+         * get the length of upcoming redis_key value, convert from ascii
+         * if the length is empty, return
+         */
+#if defined nginx_version && nginx_version < 1001004
         r->headers_out.content_length_n = ngx_atoof(len, p - len - 1);
-	/* if the length is empty, return */
         if (r->headers_out.content_length_n == -1) {
+#else
+        u->headers_in.content_length_n = ngx_atoof(len, p - len - 1);
+        if (u->headers_in.content_length_n == -1) {
+#endif
             ngx_log_error(NGX_LOG_ERR, r->connection->log, 0,
                           "redis sent invalid length in response \"%V\" "
                           "for key \"%V\"",
@@ -547,7 +557,11 @@ ngx_http_redis_filter(void *data, ssize_t bytes)
     u = ctx->request->upstream;
     b = &u->buffer;
 
+#if defined nginx_version && nginx_version < 1001004
     if (u->length == ctx->rest) {
+#else
+    if (u->length == (ssize_t) ctx->rest) {
+#endif
 
         if (ngx_strncmp(b->last,
                    ngx_http_redis_end + NGX_HTTP_REDIS_END - ctx->rest,
@@ -565,6 +579,12 @@ ngx_http_redis_filter(void *data, ssize_t bytes)
 
         u->length -= bytes;
         ctx->rest -= bytes;
+
+#if defined nginx_version && nginx_version >= 1001004
+        if (u->length == 0) {
+            u->keepalive = 1;
+        }
+#endif
 
         return NGX_OK;
     }
@@ -603,12 +623,27 @@ ngx_http_redis_filter(void *data, ssize_t bytes)
     if (ngx_strncmp(last, ngx_http_redis_end, b->last - last) != 0) {
         ngx_log_error(NGX_LOG_ERR, ctx->request->connection->log, 0,
                       "redis sent invalid trailer");
+
+#if defined nginx_version && nginx_version >= 1001004
+        b->last = last;
+        cl->buf->last = last;
+        u->length = 0;
+        ctx->rest = 0;
+
+        return NGX_OK;
+#endif
     }
 
     ctx->rest -= b->last - last;
     b->last = last;
     cl->buf->last = last;
     u->length = ctx->rest;
+
+#if defined nginx_version && nginx_version >= 1001004
+        if (u->length == 0) {
+            u->keepalive = 1;
+        }
+#endif
 
     return NGX_OK;
 }

@@ -1,3 +1,11 @@
+Changes with ngx_http_redis 0.3.5                               30 Aug 2011
+
+    *) Feature: add test for not set $redis_db directive.
+
+    *) Feature: keep-alive support merged from original
+       memcached module 1.1.4.
+
+
 Changes with ngx_http_redis 0.3.4                               24 Aug 2011
 
     *) Change: better error messages diagnostics in select phase.
