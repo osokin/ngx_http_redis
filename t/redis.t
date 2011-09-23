@@ -26,7 +26,7 @@ eval { require Redis; };
 plan(skip_all => 'Redis not installed') if $@;
 
 
-my $t = Test::Nginx->new()->has(qw/http rewrite redis/)
+my $t = Test::Nginx->new()->has(qw/http redis/)
 	->has_daemon('redis-server')->plan(6)
 	->write_file_expand('nginx.conf', <<'EOF');
 
