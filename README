@@ -81,6 +81,42 @@ http
 }
 
 
+Example 3.
+
+Compile nginx with ngx_http_redis and ngx_http_gunzip_filter modules
+(http://mdounin.ru/hg/ngx_http_gunzip_filter_module/).
+Gzip content and put it into redis database.
+
+% cat index.html
+<html><body>Hello from redis!</body></html>
+% gzip index.html
+% cat index.html.gz | redis-cli -x set /index.html
+OK
+% cat index.html.gz | redis-cli -x set /
+OK
+%
+
+Using following configuration nginx get data from redis database and
+gunzip it.
+
+http
+{
+ ...
+    upstream redis {
+        server  127.0.0.1:6379;
+    }
+
+    server {
+     ...
+        location / {
+                gunzip on;
+                redis_gzip_flag 1;
+                set $redis_key "$uri";
+                redis_pass redis;
+    }
+}
+
+
 
 Thanks to:
 --

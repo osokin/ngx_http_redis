@@ -1,3 +1,15 @@
+Changes with ngx_http_redis 0.3.6                               03 Apr 2012
+
+    *) Feature: redis_gzip_flag.  Usefull if you are prefer to
+       store data compressed in redis.  Works with ngx_http_gunzip_filter
+       module.
+       Thanks to Maxim Dounin.
+
+    *) Bugfix: ngx_http_redis_module might issue the error message
+       "redis sent invalid trailer".
+       Thanks to agentzh.
+
+
 Changes with ngx_http_redis 0.3.5                               30 Aug 2011
 
     *) Feature: add test for not set $redis_db directive.
