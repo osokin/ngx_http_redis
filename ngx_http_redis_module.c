@@ -4,7 +4,7 @@
  * Copyright (C) Sergey A. Osokin
  */
 
-#define	NGX_ESCAPE_REDIS   4
+#define NGX_ESCAPE_REDIS   4
 
 
 #include <ngx_config.h>
@@ -17,6 +17,7 @@ typedef struct {
     ngx_http_upstream_conf_t   upstream;
     ngx_int_t                  index;
     ngx_int_t                  db;
+    ngx_uint_t                 gzip_flag;
 } ngx_http_redis_loc_conf_t;
 
 
@@ -107,6 +108,13 @@ static ngx_command_t  ngx_http_redis_commands[] = {
       offsetof(ngx_http_redis_loc_conf_t, upstream.next_upstream),
       &ngx_http_redis_next_upstream_masks },
 
+    { ngx_string("redis_gzip_flag"),
+      NGX_HTTP_MAIN_CONF|NGX_HTTP_SRV_CONF|NGX_HTTP_LOC_CONF|NGX_CONF_TAKE1,
+      ngx_conf_set_num_slot,
+      NGX_HTTP_LOC_CONF_OFFSET,
+      offsetof(ngx_http_redis_loc_conf_t, gzip_flag),
+      NULL },
+
       ngx_null_command
 };
 
@@ -141,6 +149,10 @@ ngx_module_t  ngx_http_redis_module = {
     NGX_MODULE_V1_PADDING
 };
 
+/* Initialize additional var for hide "Content-Enconding: gzip" header */
+static ngx_str_t  ngx_http_redis_hide_headers[] = {
+    ngx_null_string
+};
 
 static ngx_str_t  ngx_http_redis_key = ngx_string("redis_key");
 static ngx_str_t  ngx_http_redis_db  = ngx_string("redis_db");
@@ -386,8 +398,10 @@ ngx_http_redis_process_header(ngx_http_request_t *r)
     u_char                    *p, *len;
     u_int                      c, try;
     ngx_str_t                  line;
+    ngx_table_elt_t           *h;
     ngx_http_upstream_t       *u;
     ngx_http_redis_ctx_t      *ctx;
+    ngx_http_redis_loc_conf_t *rlcf;
 
     c = try = 0;
 
@@ -444,6 +458,7 @@ found:
 
     /* Get context of redis_key for future error messages, i.e. ctx->key */
     ctx = ngx_http_get_module_ctx(r, ngx_http_redis_module);
+    rlcf = ngx_http_get_module_loc_conf(r, ngx_http_redis_module);
 
     /* Compare pointer and error message, if yes set 502 and return */
     if (ngx_strncmp(p, "-ERR", sizeof("-ERR") - 1) == 0) {
@@ -487,10 +502,35 @@ found:
         /* move on pointer */
         p += sizeof("$") - 1;
 
-	/* set len to pointer */
+        /* set len to pointer */
         len = p;
 
-	/* try to find end of string */
+        /* if defined gzip_flag... */
+        if (rlcf->gzip_flag) {
+            /* hash init */
+            h = ngx_list_push(&r->upstream->headers_in.headers);
+            if (h == NULL) {
+                return NGX_ERROR;
+            }
+
+            /*
+             * add Content-Encoding header for future gunzipping
+             * with ngx_http_gunzip_filter module
+             */
+            h->hash = ngx_hash(ngx_hash(ngx_hash(ngx_hash(
+                                ngx_hash(ngx_hash(ngx_hash(
+                                ngx_hash(ngx_hash(ngx_hash(
+                                ngx_hash(ngx_hash(ngx_hash(
+                                ngx_hash(ngx_hash('c', 'o'), 'n'), 't'), 'e'),
+                                 'n'), 't'), '-'), 'e'), 'n'), 'c'), 'o'),
+                                 'd'), 'i'), 'n'), 'g');
+            ngx_str_set(&h->key, "Content-Encoding");
+            ngx_str_set(&h->value, "gzip");
+            h->lowcase_key = (u_char*) "content-encoding";
+            u->headers_in.content_encoding = h;
+        }
+
+        /* try to find end of string */
         while (*p && *p++ != CR) { /* void */ }
 
         /*
@@ -511,10 +551,10 @@ found:
             return NGX_HTTP_UPSTREAM_INVALID_HEADER;
         }
 
-	/* The length of answer is not empty, set 200 */
+        /* The length of answer is not empty, set 200 */
         u->headers_in.status_n = 200;
         u->state->status = 200;
-	/* Set position to the first symbol of data and return */
+        /* Set position to the first symbol of data and return */
         u->buffer.pos = p + 1;
 
         return NGX_OK;
@@ -565,7 +605,7 @@ ngx_http_redis_filter(void *data, ssize_t bytes)
 
         if (ngx_strncmp(b->last,
                    ngx_http_redis_end + NGX_HTTP_REDIS_END - ctx->rest,
-                   ctx->rest)
+                   bytes)
             != 0)
         {
             ngx_log_error(NGX_LOG_ERR, ctx->request->connection->log, 0,
@@ -711,8 +751,16 @@ ngx_http_redis_create_loc_conf(ngx_conf_t *cf)
     conf->upstream.pass_request_headers = 0;
     conf->upstream.pass_request_body = 0;
 
+    /*
+     * initialize additional parameters for hide
+     * "Content-Encoding: gzip" header
+     */
+    conf->upstream.hide_headers = NGX_CONF_UNSET_PTR;
+    conf->upstream.pass_headers = NGX_CONF_UNSET_PTR;
+
     conf->index = NGX_CONF_UNSET;
     conf->db = NGX_CONF_UNSET;
+    conf->gzip_flag = NGX_CONF_UNSET_UINT;
 
     return conf;
 }
@@ -721,6 +769,8 @@ ngx_http_redis_create_loc_conf(ngx_conf_t *cf)
 static char *
 ngx_http_redis_merge_loc_conf(ngx_conf_t *cf, void *parent, void *child)
 {
+    ngx_hash_init_t            hash;
+
     ngx_http_redis_loc_conf_t *prev = parent;
     ngx_http_redis_loc_conf_t *conf = child;
 
@@ -748,6 +798,18 @@ ngx_http_redis_merge_loc_conf(ngx_conf_t *cf, void *parent, void *child)
                                        |NGX_HTTP_UPSTREAM_FT_OFF;
     }
 
+    /* Initialize hash for hide "Content-Encoding" header */
+    hash.max_size = 512;
+    hash.bucket_size = ngx_align(64, ngx_cacheline_size);
+    hash.name = "redis_hide_headers_hash";
+
+    if (ngx_http_upstream_hide_headers_hash(cf, &conf->upstream,
+            &prev->upstream, ngx_http_redis_hide_headers, &hash)
+        != NGX_OK)
+    {
+        return NGX_CONF_ERROR;
+    }
+
     if (conf->upstream.upstream == NULL) {
         conf->upstream.upstream = prev->upstream.upstream;
     }
@@ -759,6 +821,8 @@ ngx_http_redis_merge_loc_conf(ngx_conf_t *cf, void *parent, void *child)
     if (conf->db == NGX_CONF_UNSET) {
         conf->db = prev->db;
     }
+
+    ngx_conf_merge_uint_value(conf->gzip_flag, prev->gzip_flag, 0);
 
     return NGX_CONF_OK;
 }
