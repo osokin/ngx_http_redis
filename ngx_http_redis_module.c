@@ -578,7 +578,17 @@ ngx_http_redis_filter_init(void *data)
 
     u = ctx->request->upstream;
 
+#if defined nginx_version && nginx_version < 1005003
     u->length += NGX_HTTP_REDIS_END;
+#else
+    if (u->headers_in.status_n != 404) {
+        u->length = u->headers_in.content_length_n + NGX_HTTP_REDIS_END;
+        ctx->rest = NGX_HTTP_REDIS_END;
+
+    } else {
+        u->length = 0;
+    }
+#endif
 
     return NGX_OK;
 }
@@ -658,7 +668,7 @@ ngx_http_redis_filter(void *data, ssize_t bytes)
         return NGX_OK;
     }
 
-    last += u->length - NGX_HTTP_REDIS_END;
+    last += (size_t) (u->length - NGX_HTTP_REDIS_END);
 
     if (ngx_strncmp(last, ngx_http_redis_end, b->last - last) != 0) {
         ngx_log_error(NGX_LOG_ERR, ctx->request->connection->log, 0,
