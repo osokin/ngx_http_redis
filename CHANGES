@@ -1,3 +1,10 @@
+Changes with ngx_http_redis 0.3.7                               28 Nov 2013
+
+    *) Bugfix: ngx_http_redis_module might issue the error message
+       "redis sent invalid trailer" for nginx >= 1.5.3.
+       Thanks to Maxim Dounin.
+
+
 Changes with ngx_http_redis 0.3.6                               03 Apr 2012
 
     *) Feature: redis_gzip_flag.  Usefull if you are prefer to
