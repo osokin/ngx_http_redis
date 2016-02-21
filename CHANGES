@@ -1,3 +1,14 @@
+Changes with ngx_http_redis 0.3.8                               21 Feb 2016
+
+    *) Bugfix: it is impossible to compile the ngx_http_redis_module
+       without http_gzip module or with --without-http_gzip_module
+       option.
+       Thanks to Yichun Zhang (agentzh).
+ 
+    *) Feature: it's possible to compile as dynamic module now, this
+       feature has been introduced in nginx 1.9.11.
+
+
 Changes with ngx_http_redis 0.3.7                               28 Nov 2013
 
     *) Bugfix: ngx_http_redis_module might issue the error message
@@ -7,7 +18,7 @@ Changes with ngx_http_redis 0.3.7                               28 Nov 2013
 
 Changes with ngx_http_redis 0.3.6                               03 Apr 2012
 
-    *) Feature: redis_gzip_flag.  Usefull if you are prefer to
+    *) Feature: redis_gzip_flag.  Useful if you are prefer to
        store data compressed in redis.  Works with ngx_http_gunzip_filter
        module.
        Thanks to Maxim Dounin.
