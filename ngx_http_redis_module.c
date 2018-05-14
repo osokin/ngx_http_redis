@@ -6,6 +6,11 @@
 
 #define NGX_ESCAPE_REDIS   4
 
+#define REDIS_AUTH_CMD      "*2\r\n$4\r\nauth\r\n"
+#define REDIS_GET_CMD       "*2\r\n$3\r\nget\r\n"
+#define REDIS_SELECT_CMD    "*2\r\n$6\r\nselect\r\n"
+#define REDIS_PLUSOKCRLF    "+OK\r\n"
+#define REDIS_ERR           "$-1"
 
 #include <ngx_config.h>
 #include <ngx_core.h>
@@ -17,6 +22,7 @@ typedef struct {
     ngx_http_upstream_conf_t   upstream;
     ngx_int_t                  index;
     ngx_int_t                  db;
+    ngx_int_t                  auth;
     ngx_uint_t                 gzip_flag;
 } ngx_http_redis_loc_conf_t;
 
@@ -154,9 +160,11 @@ static ngx_str_t  ngx_http_redis_hide_headers[] = {
     ngx_null_string
 };
 
-static ngx_str_t  ngx_http_redis_key = ngx_string("redis_key");
-static ngx_str_t  ngx_http_redis_db  = ngx_string("redis_db");
+static ngx_str_t  ngx_http_redis_key  = ngx_string("redis_key");
+static ngx_str_t  ngx_http_redis_db   = ngx_string("redis_db");
+static ngx_str_t  ngx_http_redis_auth = ngx_string("redis_auth");
 static ngx_uint_t ngx_http_redis_db_index;
+static ngx_uint_t ngx_http_redis_auth_index;
 
 
 #define NGX_HTTP_REDIS_END   (sizeof(ngx_http_redis_end) - 1)
@@ -259,17 +267,31 @@ ngx_http_redis_handler(ngx_http_request_t *r)
 static ngx_int_t
 ngx_http_redis_create_request(ngx_http_request_t *r)
 {
-    size_t                          len;
+    size_t                          len = 0;
     uintptr_t                       escape;
     ngx_buf_t                      *b;
     ngx_chain_t                    *cl;
     ngx_http_redis_ctx_t           *ctx;
-    ngx_http_variable_value_t      *vv[2];
+    ngx_http_variable_value_t      *vv[3];
     ngx_http_redis_loc_conf_t      *rlcf;
+    u_char                          lenbuf[NGX_INT_T_LEN];
 
     rlcf = ngx_http_get_module_loc_conf(r, ngx_http_redis_module);
 
-    vv[0] = ngx_http_get_indexed_variable(r, ngx_http_redis_db_index);
+    vv[0] = ngx_http_get_indexed_variable(r, ngx_http_redis_auth_index);
+    if (vv[0] == NULL || vv[0]->not_found || vv[0]->len == 0) {
+        ngx_log_debug0(NGX_LOG_DEBUG_HTTP, r->connection->log, 0,
+                       "no auth command provided" );
+    } else {
+        len += sizeof(REDIS_AUTH_CMD) + sizeof("$") - 1;
+        len += ngx_sprintf(lenbuf, "%d", vv[0]->len) - lenbuf;
+        len += sizeof(CRLF) - 1 + vv[0]->len;
+        ngx_log_debug1(NGX_LOG_DEBUG_HTTP, r->connection->log, 0,
+                       "auth info: %s", vv[0]->data);
+    }
+    len += sizeof(CRLF) - 1;
+
+    vv[1] = ngx_http_get_indexed_variable(r, ngx_http_redis_db_index);
 
     /*
      * If user do not select redis database in nginx.conf by redis_db
@@ -277,30 +299,34 @@ ngx_http_redis_create_request(ngx_http_request_t *r)
      * some overhead in talk with redis, but this way simplify parsing
      * the redis answer in ngx_http_redis_process_header().
      */
-    if (vv[0] == NULL || vv[0]->not_found || vv[0]->len == 0) {
+    if (vv[1] == NULL || vv[1]->not_found || vv[1]->len == 0) {
         ngx_log_debug0(NGX_LOG_DEBUG_HTTP, r->connection->log, 0,
                        "select 0 redis database" );
-        len = sizeof("select 0") - 1;
+        len += sizeof(REDIS_SELECT_CMD) + sizeof("$1") + sizeof(CRLF) + sizeof("0") - 1;
     } else {
-        len = sizeof("select ") - 1 + vv[0]->len;
+        len += sizeof(REDIS_SELECT_CMD) + sizeof("$") - 1;
+        len += ngx_sprintf(lenbuf, "%d", vv[1]->len) - lenbuf;
+        len += sizeof(CRLF) - 1 + vv[1]->len;
         ngx_log_debug1(NGX_LOG_DEBUG_HTTP, r->connection->log, 0,
-                       "select %s redis database", vv[0]->data);
+                       "select %s redis database", vv[1]->data);
     }
     len += sizeof(CRLF) - 1;
 
-    vv[1] = ngx_http_get_indexed_variable(r, rlcf->index);
+    vv[2] = ngx_http_get_indexed_variable(r, rlcf->index);
 
     /* If nginx.conf have no redis_key return error. */
-    if (vv[1] == NULL || vv[1]->not_found || vv[1]->len == 0) {
+    if (vv[2] == NULL || vv[2]->not_found || vv[2]->len == 0) {
         ngx_log_error(NGX_LOG_ERR, r->connection->log, 0,
                       "the \"$redis_key\" variable is not set");
         return NGX_ERROR;
     }
 
     /* Count have space required escape symbols. */
-    escape = 2 * ngx_escape_uri(NULL, vv[1]->data, vv[1]->len, NGX_ESCAPE_REDIS);
+    escape = 2 * ngx_escape_uri(NULL, vv[2]->data, vv[2]->len, NGX_ESCAPE_REDIS);
 
-    len += sizeof("get ") - 1 + vv[1]->len + escape + sizeof(CRLF) - 1;
+    len += sizeof(REDIS_GET_CMD) + sizeof("$") - 1;
+    len += ngx_sprintf(lenbuf, "%d", vv[2]->len) - lenbuf;
+    len += sizeof(CRLF) - 1 + vv[2]->len + escape + sizeof(CRLF) - 1;
 
     /* Create temporary buffer for request with size len. */
     b = ngx_create_temp_buf(r->pool, len);
@@ -318,9 +344,13 @@ ngx_http_redis_create_request(ngx_http_request_t *r)
 
     r->upstream->request_bufs = cl;
 
-    /* Add "select " for request. */
-    *b->last++ = 's'; *b->last++ = 'e'; *b->last++ = 'l'; *b->last++ = 'e';
-    *b->last++ = 'c'; *b->last++ = 't'; *b->last++ = ' ';
+    /* add "auth " for request */
+    if (vv[0] != NULL && !(vv[0]->not_found) && vv[0]->len != 0) {
+        /* Add "auth " for request. */
+        b->last = ngx_sprintf(b->last, "%s$%d%s", REDIS_AUTH_CMD, vv[0]->len, CRLF);
+        b->last = ngx_copy(b->last, vv[0]->data, vv[0]->len);
+        *b->last++ = CR; *b->last++ = LF;
+    }
 
     /* Get context redis_db from configuration file. */
     ctx = ngx_http_get_module_ctx(r, ngx_http_redis_module);
@@ -331,12 +361,14 @@ ngx_http_redis_create_request(ngx_http_request_t *r)
      * Add "0" as redis number db to request if redis_db undefined,
      * othervise add real number from context.
      */
-    if (vv[0] == NULL || vv[0]->not_found || vv[0]->len == 0) {
+    if (vv[1] == NULL || vv[1]->not_found || vv[1]->len == 0) {
+        b->last = ngx_sprintf(b->last, "%s$1%s", REDIS_SELECT_CMD, CRLF);
         ngx_log_debug0(NGX_LOG_DEBUG_HTTP, r->connection->log, 0,
                        "select 0 redis database" );
         *b->last++ = '0';
     } else {
-        b->last = ngx_copy(b->last, vv[0]->data, vv[0]->len);
+        b->last = ngx_sprintf(b->last, "%s$%d%s", REDIS_SELECT_CMD, vv[1]->len, CRLF);
+        b->last = ngx_copy(b->last, vv[1]->data, vv[1]->len);
         ctx->key.len = b->last - ctx->key.data;
         ngx_log_debug1(NGX_LOG_DEBUG_HTTP, r->connection->log, 0,
                        "select %V redis database", &ctx->key);
@@ -345,10 +377,7 @@ ngx_http_redis_create_request(ngx_http_request_t *r)
     /* Add "\r\n". */
     *b->last++ = CR; *b->last++ = LF;
 
-
-    /* Add "get" command with space. */
-    *b->last++ = 'g'; *b->last++ = 'e'; *b->last++ = 't'; *b->last++ = ' ';
-
+    b->last = ngx_sprintf(b->last, "%s$%d%s", REDIS_GET_CMD, vv[2]->len, CRLF);
     /* Get context redis_key from nginx.conf. */
     ctx = ngx_http_get_module_ctx(r, ngx_http_redis_module);
 
@@ -360,10 +389,10 @@ ngx_http_redis_create_request(ngx_http_request_t *r)
      */
 
     if (escape == 0) {
-        b->last = ngx_copy(b->last, vv[1]->data, vv[1]->len);
+        b->last = ngx_copy(b->last, vv[2]->data, vv[2]->len);
 
     } else {
-        b->last = (u_char *) ngx_escape_uri(b->last, vv[1]->data, vv[1]->len,
+        b->last = (u_char *) ngx_escape_uri(b->last, vv[2]->data, vv[2]->len,
                                             NGX_ESCAPE_REDIS);
     }
 
@@ -377,8 +406,8 @@ ngx_http_redis_create_request(ngx_http_request_t *r)
 
     /*
      * Summary, the request looks like this:
-     * "select $redis_db\r\nget $redis_key\r\n", where
-     * $redis_db and $redis_key are variable's values.
+     * "auth $redis_auth\r\nselect $redis_db\r\nget $redis_key\r\n", where
+     * $redis_auth, $redis_db and $redis_key are variable's values.
      */
 
     return NGX_OK;
@@ -402,6 +431,11 @@ ngx_http_redis_process_header(ngx_http_request_t *r)
     ngx_http_upstream_t       *u;
     ngx_http_redis_ctx_t      *ctx;
     ngx_http_redis_loc_conf_t *rlcf;
+    ngx_http_variable_value_t *vv;
+    ngx_int_t                  no_auth_cmd;
+
+    vv = ngx_http_get_indexed_variable(r, ngx_http_redis_auth_index);
+    no_auth_cmd = (vv == NULL || vv->not_found || vv->len == 0);
 
     c = try = 0;
 
@@ -411,22 +445,27 @@ ngx_http_redis_process_header(ngx_http_request_t *r)
 
     /*
      * Good answer from redis should looks like this:
-     * "+OK\r\n$8\r\n12345678\r\n"
+     * "+OK\r\n+OK\r\n$8\r\n12345678\r\n"
      *
      * Here is:
-     * "+OK" is answer for first command "select 0".
+     * "+OK\r\n+OK\r\n" is answer for first two commands
+     * "auth password" and "select 0"
      * Next two strings are answer for command "get $redis_key", where
      *
      * "$8" is length of following next string and
      * "12345678" is value of $redis_key, the string.
      *
      * So, if the first symbol is:
-     * "+" (good answer) - try to find 2 strings;
+     * "+" (good answer) - try to find 2 or 3 strings;
      * "-" (bad answer) - try to find 1 string;
-     * othervise answer is invalid. 
+     * othervise answer is invalid.
      */
     if (*p == '+') {
-        try = 2;
+        if (no_auth_cmd) {
+            try = 2;
+        } else {
+            try = 3;
+        }
     } else if (*p == '-') {
         try = 1;
     } else {
@@ -474,8 +513,23 @@ found:
     }
 
     /* Compare pointer and good message, if yes move on the pointer */
-    if (ngx_strncmp(p, "+OK\r\n", sizeof("+OK\r\n") - 1) == 0) {
-        p += sizeof("+OK\r\n") - 1;
+    vv = ngx_http_get_indexed_variable(r, ngx_http_redis_auth_index);
+    if (no_auth_cmd) {
+        if (ngx_strncmp(p, REDIS_PLUSOKCRLF, sizeof(REDIS_PLUSOKCRLF) - 1) == 0) {
+            p += sizeof(REDIS_PLUSOKCRLF) - 1;
+        } else {
+            ngx_log_debug0(NGX_LOG_DEBUG_HTTP, r->connection->log, 0,
+                           "+OK\\r\\n was expected here");
+        }
+    } else { /* check double of the "+OK\r\n" */
+        if ((ngx_strncmp(p, REDIS_PLUSOKCRLF, sizeof(REDIS_PLUSOKCRLF) - 1) == 0) &&
+            (ngx_strncmp(p + sizeof(REDIS_PLUSOKCRLF) - 1,
+                            REDIS_PLUSOKCRLF, sizeof(REDIS_PLUSOKCRLF) - 1) == 0)) {
+             p += 2 * (sizeof(REDIS_PLUSOKCRLF) - 1);
+        } else {
+            ngx_log_debug0(NGX_LOG_DEBUG_HTTP, r->connection->log, 0,
+                           "+OK\\r\\n+OK\\r\\n was expected here");
+        }
     }
 
     /*
@@ -483,7 +537,7 @@ found:
      * next symbols are length for upcoming key, "-1" means no key.
      * Set 404 and return.
      */
-    if (ngx_strncmp(p, "$-1", sizeof("$-1") - 1) == 0) {
+    if (ngx_strncmp(p, REDIS_ERR, sizeof(REDIS_ERR) - 1) == 0) {
         ngx_log_error(NGX_LOG_INFO, r->connection->log, 0,
                       "key: \"%V\" was not found by redis", &ctx->key);
 
@@ -880,6 +934,7 @@ ngx_http_redis_pass(ngx_conf_t *cf, ngx_command_t *cmd, void *conf)
     }
 
     rlcf->db = ngx_http_get_variable_index(cf, &ngx_http_redis_db);
+    rlcf->auth = ngx_http_get_variable_index(cf, &ngx_http_redis_auth);
 
     return NGX_CONF_OK;
 }
@@ -900,6 +955,7 @@ ngx_http_redis_add_variables(ngx_conf_t *cf)
 {
     ngx_int_t             n;
     ngx_http_variable_t  *var;
+    ngx_http_variable_t  *authvar;
 
     var = ngx_http_add_variable(cf, &ngx_http_redis_db,
                                 NGX_HTTP_VAR_CHANGEABLE);
@@ -915,6 +971,21 @@ ngx_http_redis_add_variables(ngx_conf_t *cf)
     }
 
     ngx_http_redis_db_index = n;
+
+    authvar = ngx_http_add_variable(cf, &ngx_http_redis_auth,
+                                NGX_HTTP_VAR_CHANGEABLE);
+    if (authvar == NULL) {
+        return NGX_ERROR;
+    }
+
+    authvar->get_handler = ngx_http_redis_reset_variable;
+
+    n = ngx_http_get_variable_index(cf, &ngx_http_redis_auth);
+    if (n == NGX_ERROR) {
+        return NGX_ERROR;
+    }
+
+    ngx_http_redis_auth_index = n;
 
     return NGX_OK;
 }

@@ -9,7 +9,7 @@ http://code.google.com/p/redis/.
 
 The redis protocol
 (http://code.google.com/p/redis/wiki/ProtocolSpecification)
-not yet fully implemented, but GET and SELECT commands only.
+not yet fully implemented, but AUTH, GET and SELECT commands only.
 
 
 
@@ -116,6 +116,22 @@ http
     }
 }
 
+
+Example 4.
+
+The same as Example 1 but with AUTH.
+
+http
+{
+ ...
+        server {
+                location / {
+                        set $redis_auth somepasswd;
+                        set $redis_key  "$uri?$args";
+                        redis_pass      127.0.0.1:6379;
+                        error_page      404 502 504 = @fallback;
+                }
+}
 
 
 Thanks to:

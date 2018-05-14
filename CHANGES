@@ -1,3 +1,10 @@
+Changes with ngx_http_redis 0.3.9                               13 May 2018
+
+    *) Feature: redis "AUTH" command support.
+       Original idea from https://github.com/Yongke/ngx_http_redis-0.3.7
+       Thanks to Wang Yongke. 
+
+
 Changes with ngx_http_redis 0.3.8                               21 Feb 2016
 
     *) Bugfix: it is impossible to compile the ngx_http_redis_module
