@@ -5,10 +5,9 @@ Description:
 --
 
 The nginx HTTP redis module for caching with redis,
-http://code.google.com/p/redis/.
+https://redis.io/.
 
-The redis protocol
-(http://code.google.com/p/redis/wiki/ProtocolSpecification)
+The redis protocol, https://redis.io/topics/protocol,
 not yet fully implemented, but AUTH, GET and SELECT commands only.
 
 
