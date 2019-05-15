@@ -70,14 +70,19 @@ static ngx_command_t  ngx_http_redis_commands[] = {
       0,
       NULL },
 
-#if defined nginx_version && nginx_version >= 8022
     { ngx_string("redis_bind"),
       NGX_HTTP_MAIN_CONF|NGX_HTTP_SRV_CONF|NGX_HTTP_LOC_CONF|NGX_CONF_TAKE1,
       ngx_http_upstream_bind_set_slot,
       NGX_HTTP_LOC_CONF_OFFSET,
       offsetof(ngx_http_redis_loc_conf_t, upstream.local),
       NULL },
-#endif
+
+    { ngx_string("redis_socket_keepalive"),
+      NGX_HTTP_MAIN_CONF|NGX_HTTP_SRV_CONF|NGX_HTTP_LOC_CONF|NGX_CONF_FLAG,
+      ngx_conf_set_flag_slot,
+      NGX_HTTP_LOC_CONF_OFFSET,
+      offsetof(ngx_http_redis_loc_conf_t, upstream.socket_keepalive),
+      NULL },
 
     { ngx_string("redis_connect_timeout"),
       NGX_HTTP_MAIN_CONF|NGX_HTTP_SRV_CONF|NGX_HTTP_LOC_CONF|NGX_CONF_TAKE1,
@@ -113,6 +118,20 @@ static ngx_command_t  ngx_http_redis_commands[] = {
       NGX_HTTP_LOC_CONF_OFFSET,
       offsetof(ngx_http_redis_loc_conf_t, upstream.next_upstream),
       &ngx_http_redis_next_upstream_masks },
+
+    { ngx_string("redis_next_upstream_tries"),
+      NGX_HTTP_MAIN_CONF|NGX_HTTP_SRV_CONF|NGX_HTTP_LOC_CONF|NGX_CONF_TAKE1,
+      ngx_conf_set_num_slot,
+      NGX_HTTP_LOC_CONF_OFFSET,
+      offsetof(ngx_http_redis_loc_conf_t, upstream.next_upstream_tries),
+      NULL },
+
+    { ngx_string("redis_next_upstream_timeout"),
+      NGX_HTTP_MAIN_CONF|NGX_HTTP_SRV_CONF|NGX_HTTP_LOC_CONF|NGX_CONF_TAKE1,
+      ngx_conf_set_msec_slot,
+      NGX_HTTP_LOC_CONF_OFFSET,
+      offsetof(ngx_http_redis_loc_conf_t, upstream.next_upstream_timeout),
+      NULL },
 
     { ngx_string("redis_gzip_flag"),
       NGX_HTTP_MAIN_CONF|NGX_HTTP_SRV_CONF|NGX_HTTP_LOC_CONF|NGX_CONF_TAKE1,
@@ -193,40 +212,17 @@ ngx_http_redis_handler(ngx_http_request_t *r)
         return NGX_HTTP_INTERNAL_SERVER_ERROR;
     }
 
-#if defined nginx_version && nginx_version >= 8011
     if (ngx_http_upstream_create(r) != NGX_OK) {
-#else
-    rlcf = ngx_http_get_module_loc_conf(r, ngx_http_redis_module);
-
-    u = ngx_pcalloc(r->pool, sizeof(ngx_http_upstream_t));
-    if (u == NULL) {
-#endif
         return NGX_HTTP_INTERNAL_SERVER_ERROR;
     }
 
-#if defined nginx_version && nginx_version >= 8011
     u = r->upstream;
-#endif
 
-#if defined nginx_version && nginx_version >= 8037
     ngx_str_set(&u->schema, "redis://");
-#else
-    u->schema.len = sizeof("redis://") - 1;
-    u->schema.data = (u_char *) "redis://";
-#endif
 
-#if defined nginx_version && nginx_version >= 8011
     u->output.tag = (ngx_buf_tag_t) &ngx_http_redis_module;
-#else
-    u->peer.log = r->connection->log;
-    u->peer.log_error = NGX_ERROR_ERR;
-#endif
 
-#if defined nginx_version && nginx_version >= 8011
     rlcf = ngx_http_get_module_loc_conf(r, ngx_http_redis_module);
-#else
-    u->output.tag = (ngx_buf_tag_t) &ngx_http_redis_module;
-#endif
 
     u->conf = &rlcf->upstream;
 
@@ -235,10 +231,6 @@ ngx_http_redis_handler(ngx_http_request_t *r)
     u->process_header = ngx_http_redis_process_header;
     u->abort_request = ngx_http_redis_abort_request;
     u->finalize_request = ngx_http_redis_finalize_request;
-
-#if defined nginx_version && nginx_version < 8011
-    r->upstream = u;
-#endif
 
     ctx = ngx_palloc(r->pool, sizeof(ngx_http_redis_ctx_t));
     if (ctx == NULL) {
@@ -254,9 +246,7 @@ ngx_http_redis_handler(ngx_http_request_t *r)
     u->input_filter = ngx_http_redis_filter;
     u->input_filter_ctx = ctx;
 
-#if defined nginx_version && nginx_version >= 8011
     r->main->count++;
-#endif
 
     ngx_http_upstream_init(r);
 
@@ -543,9 +533,7 @@ found:
 
         u->headers_in.status_n = 404;
         u->state->status = 404;
-#if defined nginx_version && nginx_version >= 1001004
         u->keepalive = 1;
-#endif
 
         return NGX_OK;
     }
@@ -593,13 +581,8 @@ found:
          * get the length of upcoming redis_key value, convert from ascii
          * if the length is empty, return
          */
-#if defined nginx_version && nginx_version < 1001004
-        r->headers_out.content_length_n = ngx_atoof(len, p - len - 1);
-        if (r->headers_out.content_length_n == -1) {
-#else
         u->headers_in.content_length_n = ngx_atoof(len, p - len - 1);
         if (u->headers_in.content_length_n == -1) {
-#endif
             ngx_log_error(NGX_LOG_ERR, r->connection->log, 0,
                           "redis sent invalid length in response \"%V\" "
                           "for key \"%V\"",
@@ -634,9 +617,6 @@ ngx_http_redis_filter_init(void *data)
 
     u = ctx->request->upstream;
 
-#if defined nginx_version && nginx_version < 1005003
-    u->length += NGX_HTTP_REDIS_END;
-#else
     if (u->headers_in.status_n != 404) {
         u->length = u->headers_in.content_length_n + NGX_HTTP_REDIS_END;
         ctx->rest = NGX_HTTP_REDIS_END;
@@ -644,7 +624,6 @@ ngx_http_redis_filter_init(void *data)
     } else {
         u->length = 0;
     }
-#endif
 
     return NGX_OK;
 }
@@ -663,11 +642,7 @@ ngx_http_redis_filter(void *data, ssize_t bytes)
     u = ctx->request->upstream;
     b = &u->buffer;
 
-#if defined nginx_version && nginx_version < 1001004
-    if (u->length == ctx->rest) {
-#else
     if (u->length == (ssize_t) ctx->rest) {
-#endif
 
         if (ngx_strncmp(b->last,
                    ngx_http_redis_end + NGX_HTTP_REDIS_END - ctx->rest,
@@ -686,11 +661,9 @@ ngx_http_redis_filter(void *data, ssize_t bytes)
         u->length -= bytes;
         ctx->rest -= bytes;
 
-#if defined nginx_version && nginx_version >= 1001004
         if (u->length == 0) {
             u->keepalive = 1;
         }
-#endif
 
         return NGX_OK;
     }
@@ -730,14 +703,12 @@ ngx_http_redis_filter(void *data, ssize_t bytes)
         ngx_log_error(NGX_LOG_ERR, ctx->request->connection->log, 0,
                       "redis sent invalid trailer");
 
-#if defined nginx_version && nginx_version >= 1001004
         b->last = last;
         cl->buf->last = last;
         u->length = 0;
         ctx->rest = 0;
 
         return NGX_OK;
-#endif
     }
 
     ctx->rest -= b->last - last;
@@ -745,11 +716,9 @@ ngx_http_redis_filter(void *data, ssize_t bytes)
     cl->buf->last = last;
     u->length = ctx->rest;
 
-#if defined nginx_version && nginx_version >= 1001004
-        if (u->length == 0) {
-            u->keepalive = 1;
-        }
-#endif
+    if (u->length == 0) {
+       u->keepalive = 1;
+    }
 
     return NGX_OK;
 }
@@ -780,11 +749,7 @@ ngx_http_redis_create_loc_conf(ngx_conf_t *cf)
 
     conf = ngx_pcalloc(cf->pool, sizeof(ngx_http_redis_loc_conf_t));
     if (conf == NULL) {
-#if defined nginx_version && nginx_version >= 8011
         return NULL;
-#else
-        return NGX_CONF_ERROR;
-#endif
     }
 
     /*
@@ -793,13 +758,15 @@ ngx_http_redis_create_loc_conf(ngx_conf_t *cf)
      *     conf->upstream.bufs.num = 0;
      *     conf->upstream.next_upstream = 0;
      *     conf->upstream.temp_path = NULL;
-     *     conf->upstream.uri = { 0, NULL };
-     *     conf->upstream.location = NULL;
      */
 
+    conf->upstream.local = NGX_CONF_UNSET_PTR;
+    conf->upstream.socket_keepalive = NGX_CONF_UNSET;
+    conf->upstream.next_upstream_tries = NGX_CONF_UNSET_UINT;
     conf->upstream.connect_timeout = NGX_CONF_UNSET_MSEC;
     conf->upstream.send_timeout = NGX_CONF_UNSET_MSEC;
     conf->upstream.read_timeout = NGX_CONF_UNSET_MSEC;
+    conf->upstream.next_upstream_timeout = NGX_CONF_UNSET_MSEC;
 
     conf->upstream.buffer_size = NGX_CONF_UNSET_SIZE;
 
@@ -816,13 +783,7 @@ ngx_http_redis_create_loc_conf(ngx_conf_t *cf)
     conf->upstream.intercept_404 = 1;
     conf->upstream.pass_request_headers = 0;
     conf->upstream.pass_request_body = 0;
-
-    /*
-     * initialize additional parameters for hide
-     * "Content-Encoding: gzip" header
-     */
-    conf->upstream.hide_headers = NGX_CONF_UNSET_PTR;
-    conf->upstream.pass_headers = NGX_CONF_UNSET_PTR;
+    conf->upstream.force_ranges = 1;
 
     conf->index = NGX_CONF_UNSET;
     conf->db = NGX_CONF_UNSET;
@@ -835,10 +796,18 @@ ngx_http_redis_create_loc_conf(ngx_conf_t *cf)
 static char *
 ngx_http_redis_merge_loc_conf(ngx_conf_t *cf, void *parent, void *child)
 {
-    ngx_hash_init_t            hash;
-
     ngx_http_redis_loc_conf_t *prev = parent;
     ngx_http_redis_loc_conf_t *conf = child;
+
+    ngx_conf_merge_ptr_value(conf->upstream.local,
+                              prev->upstream.local, NULL);
+
+    ngx_conf_merge_value(conf->upstream.socket_keepalive,
+                              prev->upstream.socket_keepalive, 0);
+
+    ngx_conf_merge_uint_value(conf->upstream.next_upstream_tries,
+                              prev->upstream.next_upstream_tries,
+0);
 
     ngx_conf_merge_msec_value(conf->upstream.connect_timeout,
                               prev->upstream.connect_timeout, 60000);
@@ -848,6 +817,9 @@ ngx_http_redis_merge_loc_conf(ngx_conf_t *cf, void *parent, void *child)
 
     ngx_conf_merge_msec_value(conf->upstream.read_timeout,
                               prev->upstream.read_timeout, 60000);
+
+    ngx_conf_merge_msec_value(conf->upstream.next_upstream_timeout,
+                              prev->upstream.next_upstream_timeout, 0);
 
     ngx_conf_merge_size_value(conf->upstream.buffer_size,
                               prev->upstream.buffer_size,
@@ -862,18 +834,6 @@ ngx_http_redis_merge_loc_conf(ngx_conf_t *cf, void *parent, void *child)
     if (conf->upstream.next_upstream & NGX_HTTP_UPSTREAM_FT_OFF) {
         conf->upstream.next_upstream = NGX_CONF_BITMASK_SET
                                        |NGX_HTTP_UPSTREAM_FT_OFF;
-    }
-
-    /* Initialize hash for hide "Content-Encoding" header */
-    hash.max_size = 512;
-    hash.bucket_size = ngx_align(64, ngx_cacheline_size);
-    hash.name = "redis_hide_headers_hash";
-
-    if (ngx_http_upstream_hide_headers_hash(cf, &conf->upstream,
-            &prev->upstream, ngx_http_redis_hide_headers, &hash)
-        != NGX_OK)
-    {
-        return NGX_CONF_ERROR;
     }
 
     if (conf->upstream.upstream == NULL) {
