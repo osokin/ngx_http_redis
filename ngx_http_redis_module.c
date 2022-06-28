@@ -581,8 +581,10 @@ found:
             ngx_str_set(&h->key, "Content-Encoding");
             ngx_str_set(&h->value, "gzip");
             h->lowcase_key = (u_char*) "content-encoding";
+#if defined(nginx_version) && nginx_version < 1023000
 #if (NGX_HTTP_GZIP)
             u->headers_in.content_encoding = h;
+#endif
 #endif
         }
 
