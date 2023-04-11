@@ -550,7 +550,7 @@ found:
         /* if defined gzip_flag... */
         if (rlcf->gzip_flag) {
             /* hash init */
-            h = ngx_list_push(&r->upstream->headers_in.headers);
+            h = ngx_list_push(&r->headers_out.headers);
             if (h == NULL) {
                 return NGX_ERROR;
             }
@@ -559,19 +559,11 @@ found:
              * add Content-Encoding header for future gunzipping
              * with ngx_http_gunzip_filter module
              */
-            h->hash = ngx_hash(ngx_hash(ngx_hash(ngx_hash(
-                                ngx_hash(ngx_hash(ngx_hash(
-                                ngx_hash(ngx_hash(ngx_hash(
-                                ngx_hash(ngx_hash(ngx_hash(
-                                ngx_hash(ngx_hash('c', 'o'), 'n'), 't'), 'e'),
-                                 'n'), 't'), '-'), 'e'), 'n'), 'c'), 'o'),
-                                 'd'), 'i'), 'n'), 'g');
+            h->hash = 1;
+            h->next = NULL;
             ngx_str_set(&h->key, "Content-Encoding");
             ngx_str_set(&h->value, "gzip");
-            h->lowcase_key = (u_char*) "content-encoding";
-#if (NGX_HTTP_GZIP)
-            u->headers_in.content_encoding = h;
-#endif
+            r->headers_out.content_encoding = h;
         }
 
         /* try to find end of string */
