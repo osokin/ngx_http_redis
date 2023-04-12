@@ -174,11 +174,6 @@ ngx_module_t  ngx_http_redis_module = {
     NGX_MODULE_V1_PADDING
 };
 
-/* Initialize additional var for hide "Content-Enconding: gzip" header */
-static ngx_str_t  ngx_http_redis_hide_headers[] = {
-    ngx_null_string
-};
-
 static ngx_str_t  ngx_http_redis_key  = ngx_string("redis_key");
 static ngx_str_t  ngx_http_redis_db   = ngx_string("redis_db");
 static ngx_str_t  ngx_http_redis_auth = ngx_string("redis_auth");
