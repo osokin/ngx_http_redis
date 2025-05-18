@@ -631,10 +631,11 @@ ngx_http_redis_filter(void *data, ssize_t bytes)
 
     if (u->length == (ssize_t) ctx->rest) {
 
-        if (ngx_strncmp(b->last,
+        if (bytes > u->length
+            || ngx_strncmp(b->last,
                    ngx_http_redis_end + NGX_HTTP_REDIS_END - ctx->rest,
                    bytes)
-            != 0)
+               != 0)
         {
             ngx_log_error(NGX_LOG_ERR, ctx->request->connection->log, 0,
                           "redis sent invalid trailer");
@@ -686,7 +687,9 @@ ngx_http_redis_filter(void *data, ssize_t bytes)
 
     last += (size_t) (u->length - NGX_HTTP_REDIS_END);
 
-    if (ngx_strncmp(last, ngx_http_redis_end, b->last - last) != 0) {
+    if (bytes > u->length
+        || ngx_strncmp(last, ngx_http_redis_end, b->last - last) != 0)
+    {
         ngx_log_error(NGX_LOG_ERR, ctx->request->connection->log, 0,
                       "redis sent invalid trailer");
 
