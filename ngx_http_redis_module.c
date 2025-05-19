@@ -569,7 +569,7 @@ found:
          * if the length is empty, return
          */
         u->headers_in.content_length_n = ngx_atoof(len, p - len - 1);
-        if (u->headers_in.content_length_n == -1) {
+        if (u->headers_in.content_length_n == NGX_ERROR) {
             ngx_log_error(NGX_LOG_ERR, r->connection->log, 0,
                           "redis sent invalid length in response \"%V\" "
                           "for key \"%V\"",
