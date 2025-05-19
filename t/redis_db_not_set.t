@@ -31,6 +31,8 @@ my $t = Test::Nginx->new()->has(qw/http redis/)
 
 %%TEST_GLOBALS%%
 
+load_module /usr/local/libexec/nginx/ngx_http_redis_module.so;
+
 daemon         off;
 
 events {
@@ -56,5 +58,38 @@ http {
 
 EOF
 
+$t->write_file('redis.conf', <<EOF);
+
+daemonize no
+pidfile ./redis.pid
+port 8081
+bind 127.0.0.1
+timeout 300
+loglevel debug
+logfile ./redis.log
+databases 16
+save 900 1
+save 300 10
+save 60 10000
+rdbcompression yes
+dbfilename dump.rdb
+dir ./
+appendonly no
+appendfsync always
+
+EOF
+
+$t->run_daemon('redis-server', $t->testdir() . '/redis.conf');
 $t->run();
 
+$t->waitforsocket('127.0.0.1:8081')
+        or die "Can't start redis";
+
+###############################################################################
+
+my $r = Redis->new(server => '127.0.0.1:8081');
+$r->set('/' => 'SEE-THIS') or die "can't put value into redis: $!";
+
+like(http_get('/'), qr/SEE-THIS/, 'redis request /');
+
+###############################################################################
