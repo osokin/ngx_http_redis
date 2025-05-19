@@ -154,8 +154,8 @@ static ngx_http_module_t  ngx_http_redis_module_ctx = {
     NULL,                                  /* create server configuration */
     NULL,                                  /* merge server configuration */
 
-    ngx_http_redis_create_loc_conf,        /* create location configration */
-    ngx_http_redis_merge_loc_conf          /* merge location configration */
+    ngx_http_redis_create_loc_conf,        /* create location configuration */
+    ngx_http_redis_merge_loc_conf          /* merge location configuration */
 };
 
 
