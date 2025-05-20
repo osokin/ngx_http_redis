@@ -526,8 +526,10 @@ found:
         ngx_log_error(NGX_LOG_INFO, r->connection->log, 0,
                       "key: \"%V\" was not found by redis", &ctx->key);
 
+        u->headers_in.content_length_n = 0;
         u->headers_in.status_n = 404;
         u->state->status = 404;
+        u->buffer.pos = p + sizeof(REDIS_ERR CRLF) - 1;
         u->keepalive = 1;
 
         return NGX_OK;
