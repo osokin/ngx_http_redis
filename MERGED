@@ -1,0 +1,33 @@
+Here's the list of commits, merged from the recent snapshot
+of the ngx_http_memcached_module,
+https://github.com/nginx/nginx/commits/master/src/http/modules/ngx_http_memcached_module.c
+
+Please keep the list in order of original commits.
+
+e59c209
+b835b57
+1305b84
+372b624
+510986b
+00ef9ff
+be79f5c
+958d4a0
+02ce6c4
+12300c2
+cc87023
+74b7a91
+416b922
+2c0ea0f - review/test required
+5d143ca
+23a9596 - review/test required
+b74f8ff
+05552a2
+ffe4f11
+e19f005
+f5f4126
+05b1a8f
+6bdcc58
+bd375b9
+72e9287
+61b09e5
+15b7420
