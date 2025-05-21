@@ -133,6 +133,46 @@ http
 }
 
 
+Development and testing
+--
+
+1. Clone nginx-tests
+
+   git clone https://github.com/nginx/nginx-tests.git
+
+
+2. Build [and install] nginx
+
+   Installation of nginx is the optional step.
+
+   For FreeBSD ports tree:
+
+   cd /usr/ports/www/nginx-devel && make [ && make install ]
+
+
+
+3. Run the following command
+
+   PERL5LIB=/path/to/nginx-tests/dir \
+   TEST_NGINX_VERBOSE=1 \
+   TEST_NGINX_LEAVE=1 \
+   TEST_NGINX_BINARY=/path/to/nginx/binary \
+   TEST_NGINX_MODULES=/path/to/nginx/modules/directory \
+   TEST_NGINX_GLOBALS="load_module /path/to/nginx/modules/directory/ngx_http_redis_module.so;" \
+   prove
+
+   Here's the example, when nginx built from the FreeBSD ports tree
+
+   PERL5LIB=/home/nginx/github/nginx-tests/lib:${PERL5LIB} \
+   TEST_NGINX_VERBOSE=1 \
+   TEST_NGINX_LEAVE=1 \
+   TEST_NGINX_BINARY=/usr/local/sbin/nginx \
+   TEST_NGINX_MODULES=/usr/local/libexec/nginx \
+   TEST_NGINX_GLOBALS="load_module /usr/local/libexec/nginx/ngx_http_redis_module.so;" \
+   prove -prvv
+
+
+
 Thanks to:
 --
 
