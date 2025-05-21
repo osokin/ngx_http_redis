@@ -31,8 +31,6 @@ my $t = Test::Nginx->new()->has(qw/http redis/)
 
 %%TEST_GLOBALS%%
 
-load_module /usr/local/libexec/nginx/ngx_http_redis_module.so;
-
 daemon         off;
 
 events {
