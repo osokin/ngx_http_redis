@@ -428,6 +428,10 @@ ngx_http_redis_process_header(ngx_http_request_t *r)
 
     p = u->buffer.pos;
 
+    if ((u->buffer.last - p) <= 0) {
+        return NGX_AGAIN;
+    }
+
     /*
      * Good answer from redis should looks like this:
      * "+OK\r\n+OK\r\n$8\r\n12345678\r\n"
@@ -484,17 +488,14 @@ found:
     ctx = ngx_http_get_module_ctx(r, ngx_http_redis_module);
     rlcf = ngx_http_get_module_loc_conf(r, ngx_http_redis_module);
 
-    /* Compare pointer and error message, if yes set 502 and return */
+    /* Compare pointer and error message, if yes go to no_valid */
     if (ngx_strncmp(p, "-ERR", sizeof("-ERR") - 1) == 0) {
         ngx_log_error(NGX_LOG_ERR, r->connection->log, 0,
                       "redis sent error in response \"%V\" "
                       "for key \"%V\"",
                       &line, &ctx->key);
 
-        u->headers_in.status_n = 502;
-        u->state->status = 502;
-
-        return NGX_OK;
+        goto no_valid;
     }
 
     /* Compare pointer and good message, if yes move on the pointer */
