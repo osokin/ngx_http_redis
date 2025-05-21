@@ -148,7 +148,6 @@ $r2->set('/', 'SEE-THIS') or die "can't put value into redis2: $!";
 $r1->set('/big', 'X' x 1000000) or die "can't put value into redis1: $!";
 
 my $total = $r1->info->{connected_clients};                              # 0
-print "No tests: $total\n";
 
 like(http_get('/'), qr/SEE-THIS/, 'keepalive redis request');
 like(http_get('/notfound'), qr/ 404 /, 'keepalive redis not found');
@@ -160,14 +159,12 @@ like(http_get('/'), qr/SEE-THIS/, 'keepalive redis request again');
 
 is($r1->info->{connected_clients}, $total + 1,                           # 1
 	'only one connection used');
-print "6 tests: $total\n";
 
 # Since nginx doesn't read all data from connection in some situations (head
 # requests, post_action, errors writing to client) we have to close such
 # connections.  Check if we really do close them.
 
 $total = $r1->info->{connected_client} ? $r1->info->{connected_client} : 0;
-print "Again 6 tests: $total\n";
 
 unlike(http_head('/'), qr/SEE-THIS/, 'head request');
 like(http_get('/'), qr/SEE-THIS/, 'get after head');
@@ -176,7 +173,6 @@ is($r1->info->{connected_clients}, $total + 2,
 	'head request does not close connection');
 
 $total = $r1->info->{connected_clients};
-print "9 tests: $total\n";
 
 unlike(http_head('/big'), qr/XXX/, 'big head');
 like(http_get('/'), qr/SEE-THIS/, 'get after big head');
@@ -184,13 +180,11 @@ like(http_get('/'), qr/SEE-THIS/, 'get after big head');
 is($r1->info()->{connected_clients}, $total,
 	'big head request does not close connection');
 
-print "11 tests: $total\n";
 # two backends with maximum number of cached connections set to 1,
 # should establish new connection on each request
 
 $total = $r1->info->{connected_clients} +
 	$r2->info->{connected_clients};
-print "Again 11 tests: $total\n";
 
 http_get('/rs3');
 http_get('/rs3');
