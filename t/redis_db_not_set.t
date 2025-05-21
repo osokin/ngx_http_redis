@@ -66,9 +66,7 @@ timeout 300
 loglevel debug
 logfile ./redis.log
 databases 16
-save 900 1
-save 300 10
-save 60 10000
+save ""
 rdbcompression yes
 dbfilename dump.rdb
 dir ./

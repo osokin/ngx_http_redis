@@ -95,9 +95,7 @@ timeout 60
 loglevel debug
 logfile ./rs1.log
 databases 16
-save 900 1
-save 300 10
-save 60 10000
+save ""
 rdbcompression yes
 dbfilename rs1.rdb
 dir ./
@@ -118,9 +116,7 @@ timeout 60
 loglevel debug
 logfile ./rs2.log
 databases 16
-save 900 1
-save 300 10
-save 60 10000
+save ""
 rdbcompression yes
 dbfilename rs2.rdb
 dir ./
