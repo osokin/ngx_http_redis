@@ -144,11 +144,15 @@ Development and testing
 2. Build [and install] nginx
 
    Installation of nginx is the optional step.
+   Also, install:
+   - redis server
+   - perl module for redis
 
    For FreeBSD ports tree:
 
    cd /usr/ports/www/nginx-devel && make [ && make install ]
 
+   ASSUME_ALWAYS_YES=true pkg install redis p5-Redis
 
 
 3. Run the following command
