@@ -788,6 +788,7 @@ ngx_http_redis_create_loc_conf(ngx_conf_t *cf)
 
     conf->index = NGX_CONF_UNSET;
     conf->db = NGX_CONF_UNSET;
+    conf->auth = NGX_CONF_UNSET;
     conf->gzip_flag = NGX_CONF_UNSET_UINT;
 
     return conf;
@@ -847,6 +848,10 @@ ngx_http_redis_merge_loc_conf(ngx_conf_t *cf, void *parent, void *child)
 
     if (conf->db == NGX_CONF_UNSET) {
         conf->db = prev->db;
+    }
+
+    if (conf->auth == NGX_CONF_UNSET) {
+        conf->auth = prev->auth;
     }
 
     ngx_conf_merge_uint_value(conf->gzip_flag, prev->gzip_flag, 0);
