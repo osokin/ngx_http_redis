@@ -188,10 +188,10 @@ static u_char  ngx_http_redis_end[] = CRLF;
 static ngx_int_t
 ngx_http_redis_handler(ngx_http_request_t *r)
 {
-    ngx_int_t                       rc;
-    ngx_http_upstream_t            *u;
-    ngx_http_redis_ctx_t           *ctx;
-    ngx_http_redis_loc_conf_t      *rlcf;
+    ngx_int_t                   rc;
+    ngx_http_upstream_t        *u;
+    ngx_http_redis_ctx_t       *ctx;
+    ngx_http_redis_loc_conf_t  *rlcf;
 
     if (!(r->method & (NGX_HTTP_GET|NGX_HTTP_HEAD))) {
         return NGX_HTTP_NOT_ALLOWED;
@@ -252,14 +252,14 @@ ngx_http_redis_handler(ngx_http_request_t *r)
 static ngx_int_t
 ngx_http_redis_create_request(ngx_http_request_t *r)
 {
-    size_t                          len = 0;
-    uintptr_t                       escape;
-    ngx_buf_t                      *b;
-    ngx_chain_t                    *cl;
-    ngx_http_redis_ctx_t           *ctx;
-    ngx_http_variable_value_t      *vv[3];
-    ngx_http_redis_loc_conf_t      *rlcf;
-    u_char                          lenbuf[NGX_INT_T_LEN];
+    size_t                      len = 0;
+    uintptr_t                   escape;
+    ngx_buf_t                  *b;
+    ngx_chain_t                *cl;
+    ngx_http_redis_ctx_t       *ctx;
+    ngx_http_variable_value_t  *vv[3];
+    ngx_http_redis_loc_conf_t  *rlcf;
+    u_char                      lenbuf[NGX_INT_T_LEN];
 
     rlcf = ngx_http_get_module_loc_conf(r, ngx_http_redis_module);
 
@@ -288,6 +288,7 @@ ngx_http_redis_create_request(ngx_http_request_t *r)
         ngx_log_debug0(NGX_LOG_DEBUG_HTTP, r->connection->log, 0,
                        "select 0 redis database" );
         len += sizeof(REDIS_SELECT_CMD) + sizeof("$1") + sizeof(CRLF) + sizeof("0") - 1;
+
     } else {
         len += sizeof(REDIS_SELECT_CMD) + sizeof("$") - 1;
         len += ngx_sprintf(lenbuf, "%d", vv[1]->len) - lenbuf;
@@ -351,6 +352,7 @@ ngx_http_redis_create_request(ngx_http_request_t *r)
         ngx_log_debug0(NGX_LOG_DEBUG_HTTP, r->connection->log, 0,
                        "select 0 redis database" );
         *b->last++ = '0';
+
     } else {
         b->last = ngx_sprintf(b->last, "%s$%d%s", REDIS_SELECT_CMD, vv[1]->len, CRLF);
         b->last = ngx_copy(b->last, vv[1]->data, vv[1]->len);
@@ -409,15 +411,15 @@ ngx_http_redis_reinit_request(ngx_http_request_t *r)
 static ngx_int_t
 ngx_http_redis_process_header(ngx_http_request_t *r)
 {
-    u_char                    *p, *len;
-    u_int                      c, try;
-    ngx_str_t                  line;
-    ngx_table_elt_t           *h;
-    ngx_http_upstream_t       *u;
-    ngx_http_redis_ctx_t      *ctx;
-    ngx_http_redis_loc_conf_t *rlcf;
-    ngx_http_variable_value_t *vv;
-    ngx_int_t                  no_auth_cmd;
+    u_char                     *p, *len;
+    u_int                       c, try;
+    ngx_str_t                   line;
+    ngx_table_elt_t            *h;
+    ngx_http_upstream_t        *u;
+    ngx_http_redis_ctx_t       *ctx;
+    ngx_http_redis_loc_conf_t  *rlcf;
+    ngx_http_variable_value_t  *vv;
+    ngx_int_t                   no_auth_cmd;
 
     vv = ngx_http_get_indexed_variable(r, ngx_http_redis_auth_index);
     no_auth_cmd = (vv == NULL || vv->not_found || vv->len == 0);
@@ -452,11 +454,14 @@ ngx_http_redis_process_header(ngx_http_request_t *r)
     if (*p == '+') {
         if (no_auth_cmd) {
             try = 2;
+
         } else {
             try = 3;
         }
+
     } else if (*p == '-') {
         try = 1;
+
     } else {
         goto no_valid;
     }
@@ -503,15 +508,18 @@ found:
     if (no_auth_cmd) {
         if (ngx_strncmp(p, REDIS_PLUSOKCRLF, sizeof(REDIS_PLUSOKCRLF) - 1) == 0) {
             p += sizeof(REDIS_PLUSOKCRLF) - 1;
+
         } else {
             ngx_log_debug0(NGX_LOG_DEBUG_HTTP, r->connection->log, 0,
                            "+OK\\r\\n was expected here");
         }
+
     } else { /* check double of the "+OK\r\n" */
         if ((ngx_strncmp(p, REDIS_PLUSOKCRLF, sizeof(REDIS_PLUSOKCRLF) - 1) == 0) &&
             (ngx_strncmp(p + sizeof(REDIS_PLUSOKCRLF) - 1,
                             REDIS_PLUSOKCRLF, sizeof(REDIS_PLUSOKCRLF) - 1) == 0)) {
              p += 2 * (sizeof(REDIS_PLUSOKCRLF) - 1);
+
         } else {
             ngx_log_debug0(NGX_LOG_DEBUG_HTTP, r->connection->log, 0,
                            "+OK\\r\\n+OK\\r\\n was expected here");
