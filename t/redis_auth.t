@@ -25,7 +25,7 @@ select STDOUT; $| = 1;
 eval { require Redis; };
 plan(skip_all => 'Redis not installed') if $@;
 
-my $t = Test::Nginx->new()->has(qw/http redis/)
+my $t = Test::Nginx->new()->has(qw/http/)
 	->has_daemon('redis-server')->plan(2)
 	->write_file_expand('nginx.conf', <<'EOF');
 
