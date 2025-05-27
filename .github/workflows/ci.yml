@@ -1,0 +1,77 @@
+name: alpine CI
+
+on:
+
+  push:
+    branches:
+    - main
+    - develop
+  pull_request:
+
+  workflow_dispatch:
+    inputs:
+      logLevel:
+        description: 'Log level'
+        required: true
+        default: 'warning'
+        type: choice
+        options:
+        - info
+        - warning
+        - debug
+      tags:
+        description: 'Test scenario tags'
+        required: false
+        type: boolean
+      environment:
+        description: 'Environment to run tests against'
+        type: environment
+        required: false
+
+jobs:
+  build:
+
+    runs-on: ubuntu-latest
+    container: alpine
+    
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Install dependencies
+        run: |
+          apk add build-base git pcre2-dev zlib-dev 
+
+      - name: Checkout nginx
+        run: |
+          git clone https://github.com/nginx/nginx nginx-source
+
+      - name: Checkout nginx tests
+        run: |
+          git clone https://github.com/nginx/nginx-tests
+
+      - name: Configure and build nginx and ngx_http_redis module
+        run: |
+          cd nginx-source
+          auto/configure \
+                    --prefix=/tmp \
+                    --with-compat \
+                    --with-http_gunzip_module \
+                    --with-http_gzip_static_module \
+                    --add-dynamic-module=../ \
+          || cat objs/autoconf.err
+          make -j $(nproc)
+
+      - name: Install test dependencies
+        run: |
+          apk add perl perl-redis perl-test-harness-utils redis
+
+      - name: Run tests
+        run: |
+          ulimit -c unlimited
+          TEST_NGINX_BINARY=$GITHUB_WORKSPACE/nginx-source/objs/nginx \
+          TEST_NGINX_GLOBALS="load_module $GITHUB_WORKSPACE/nginx-source/objs/ngx_http_redis_module.so;" \
+          TEST_NGINX_LEAVE=1 \
+          TEST_NGINX_VERBOSE=1 \
+          TEST_NGINX_MODULES=$GITHUB_WORKSPACE/nginx-source/objs \
+          prove -prvv -Inginx-tests/lib t/
