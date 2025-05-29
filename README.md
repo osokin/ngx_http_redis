@@ -9,6 +9,140 @@ The [Redis protocol](https://redis.io/topics/protocol),
 not yet fully implemented with the module, but `AUTH`, `GET`, and
 `SELECT` commands only.
 
+# Directives
+
+### `redis_bind`
+
+| | |
+|--------- | ------------------------ |
+| Syntax:  | *redis_bind [addr]* |
+| Default: | \- |
+| Context: | *http, server, localtion* |
+
+Use the following IP address as the source address for redis connections.
+
+### `redis_buffer_size`
+
+| | |
+|--------- | ------------------------ |
+| Syntax:  | *redis_buffer_size [size]* |
+| Default: | see `getpagesize(2)` |
+| Context: | *http, server, location* |
+
+The recv/send buffer size, in bytes.
+
+### `redis_connect_timeout`
+
+| | |
+|--------- | ------------------------ |
+| Syntax:  | *redis_connect_timeout [time]* |
+| Default: | `redis_connect_timeout 60000ms;` |
+| Context: | *http, server, location* |
+
+The timeout for connecting to redis, in milliseconds.
+
+### `redis_gzip_flag`
+
+| | |
+|--------- | ------------------------ |
+| Syntax:  | *redis_gzip_flag [number]* |
+| Default: | `redis_gzip_flag unset;` |
+| Context: | *location* |
+
+Reimplementation of [memcached_gzip_flag](http://nginx.org/en/docs/http/ngx_http_memcached_module.html#memcached_gzip_flag).
+
+### `redis_next_upstream`
+
+| | |
+|--------- | ------------------------ |
+| Syntax:  | *redis_next_upstream [error] [timeout] [invalid_response] [not_found] [off]* |
+| Default: | `redis_next_upstream error timeout;` |
+| Context: | *http, server, location* |
+
+Which failure conditions should cause the request to be forwarded to another upstream
+server?  Applies only when the value in `redis_pass_` is an upstream with two or more servers.
+
+### `redis_next_upstream_timeout`
+
+| | |
+|--------- | ------------------------ |
+| Syntax:  | *redis_next_upstream_timeout [time]* |
+| Default: | `redis_next_upstream_timeout 0;` |
+| Context: | *http, server, location* |
+
+Limits the time during which a request can be passed to the next server.
+The `0` value turns off this limitation.
+
+### `redis_next_upstream_tries`
+
+| | |
+|--------- | ------------------------ |
+| Syntax:  | *redis_next_upstream_tries [number]* |
+| Default: | `redis_next_upstream_tries 0;` |
+| Context: | *http, server, location* |
+
+Limits the number of possible tries for passing a request to the next server.
+The `0` value turns off this limitation.
+
+### `redis_pass`
+
+| | |
+|--------- | ------------------------ |
+| Syntax:  | *redis_pass [name:port]* |
+| Default: | \- |
+| Context: | *http, server, location* |
+
+The backend should set the data in redis. The redis key is `/uri?args`.
+
+### `redis_read_timeout`
+
+| | |
+|--------- | ------------------------ |
+| Syntax:  | *redis_read_timeout [time]* |
+| Default: | `redis_read_timeout 60000ms;` |
+| Context: | *http, server, location* |
+
+The timeout for reading from redis, in milliseconds.
+
+### `redis_send_timeout`
+
+| | |
+|--------- | ------------------------ |
+| Syntax:  | *redis_send_timeout [time]* |
+| Default: | `redis_send_timeout 60000ms;` |
+| Context: | *http, server, location* |
+
+The timeout for sending to redis, in milliseconds.
+
+### `redis_socket_keepalive`
+
+| | |
+|--------- | ------------------------ |
+| Syntax:  | *redis_socket_keepalive on | off* |
+| Default: | `redis_socket_keepalive off;` |
+| Context: | *http, server, location* |
+
+Configures the “TCP keepalive” behavior for outgoing connections to a
+redis server. By default, the operating system's settings are in effect
+for the socket.  If the directive is set to the value " `on` ", the
+`SO_KEEPALIVE` socket option is turned on for the socket.
+
+
+# Variables
+
+### `$redis_auth`
+
+The `PASSWORD` value for the redis `AUTH` command (since 0.3.9).
+
+### `$redis_db`
+
+The number of redis database; default value is `0` if not defined.
+
+### `$redis_key`
+
+The value of the redis key.
+
+
 # Installation
 
 You'll need to re-compile Nginx from source to include this module.
