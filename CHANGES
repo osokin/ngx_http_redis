@@ -1,3 +1,11 @@
+Changes with ngx_http_redis 0.4.1                               07 Jan 2026
+
+    *) Bugfix: fix configuration/merge issues for the `redis_auth'
+       directive.
+
+    *) Feature: add gunzip test.
+
+
 Changes with ngx_http_redis 0.4.0                               21 May 2025
 
     *) Change: merge multiple commits from the ngx_http_memcached
