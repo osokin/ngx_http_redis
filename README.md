@@ -206,12 +206,12 @@ http
      ...
         location / {
 
-	    eval_escalate on;
+            eval_escalate on;
 
-	    eval $answer {
-		set $redis_key	"$http_user_agent";
-		redis_pass	redis;
-	    }
+            eval $answer {
+                set $redis_key "$http_user_agent";
+                redis_pass     redis;
+            }
 
             proxy_pass $answer;
         }
@@ -255,10 +255,10 @@ http
     server {
      ...
         location / {
-                gunzip on;
-                redis_gzip_flag 1;
-                set $redis_key "$uri";
-                redis_pass redis;
+            gunzip on;
+            redis_gzip_flag 1;
+            set $redis_key "$uri";
+            redis_pass redis;
         }
     }
 }
