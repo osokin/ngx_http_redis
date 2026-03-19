@@ -192,7 +192,7 @@ http
 Capture the `User-Agent` `HTTP` header, query to redis database
 for lookup appropriate backend.
 
-[Eval module](http://www.grid.net.ru/nginx/eval.en.html) is required.
+[Eval module](https://github.com/vkholodkov/nginx-eval-module) is required.
 
 ```
 http
