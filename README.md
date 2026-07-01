@@ -3,6 +3,12 @@
 NGINX HTTP Redis module is a dynamic module for [NGINX](https://nginx.org/en/download.html)
 that enables basic caching function with [Redis](https://redis.io/downloads/).
 
+
+# Support
+
+Commercial support and professional services is available from [tipi.work](https://tipi.work).
+
+
 # Description
 
 The [Redis protocol](https://redis.io/topics/protocol),
