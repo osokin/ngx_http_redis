@@ -118,7 +118,7 @@ The timeout for sending to redis, in milliseconds.
 
 | | |
 |--------- | ------------------------ |
-| Syntax:  | *redis_socket_keepalive on | off* |
+| Syntax:  | *redis_socket_keepalive on \| off* |
 | Default: | `redis_socket_keepalive off;` |
 | Context: | *http, server, location* |
 
@@ -126,6 +126,173 @@ Configures the “TCP keepalive” behavior for outgoing connections to a
 redis server. By default, the operating system's settings are in effect
 for the socket.  If the directive is set to the value " `on` ", the
 `SO_KEEPALIVE` socket option is turned on for the socket.
+
+
+The following set of directives requires the [OpenSSL](https://www.openssl.org/) library.
+
+The following set of directives is available as part of a *commercial subscription*.
+
+### `redis_ssl_session_reuse`
+
+| | |
+|--------- | ------------------------ |
+| Syntax:  | *redis_ssl_session_reuse on \| off* |
+| Default: | `redis_ssl_session_reuse on;` |
+| Context: | *http, server, location* |
+
+Determines whether SSL sessions can be reused when working with the proxied server.
+If the errors `SSL3_GET_FINISHED:digest check failed` appear in the logs, try
+disabling session reuse.
+
+### `redis_ssl_protocols`
+
+| | |
+|--------- | ------------------------ |
+| Syntax:  | *redis_ssl_protocols [SSLv2] [SSLv3] [TLSv1] [TLSv1.1] [TLSv1.2] [TLSv1.3]* |
+| Default: | `redis_ssl_protocols [TLSv1] [TLSv1.1] [TLSv1.2] [TLSv1.3];` |
+| Context: | *http, server, location* |
+
+Enables the specified protocols for requests to a proxied Redis server.
+
+### `redis_ssl_ciphers`
+
+| | |
+|--------- | ------------------------ |
+| Syntax:  | *redis_ssl_ciphers ciphers* |
+| Default: | `redis_ssl_ciphers DEFAULT;` |
+| Context: | *http, server, location* |
+
+Specifies the enabled ciphers for requests to a proxied Redis server.  The
+ciphers are specified in the format understood by the OpenSSL library.
+
+The full list can be viewed using the `openssl ciphers` command.
+
+### `redis_ssl_name`
+
+| | |
+|--------- | ------------------------ |
+| Syntax:  | *redis_ssl_name name* |
+| Default: | `redis_ssl_name $redis_host;` |
+| Context: | *http, server, location* |
+
+Allows overriding the server name used to verify the certificate of the proxied
+Redis server and to be passed through SNI when establishing a connection with
+the proxied Redis server.
+
+By default, the host part of the `redis_pass` URL is used.
+
+### `redis_ssl_server_name`
+
+| | |
+|--------- | ------------------------ |
+| Syntax:  | *redis_ssl_server_name on \| off* |
+| Default: | `redis_ssl_server_name off;` |
+| Context: | *http, server, location* |
+
+Enables or disables passing of the server name through [TLS Server Name
+Indication extension](http://en.wikipedia.org/wiki/Server_Name_Indication)
+(SNI, RFC 6066) when establishing a connection with the proxied Redis server.
+
+### `redis_ssl_verify`
+
+| | |
+|--------- | ------------------------ |
+| Syntax:  | *redis_ssl_verify on \| off* |
+| Default: | `redis_ssl_verify off;` |
+| Context: | *http, server, location* |
+
+Enables or disables verification of the proxied Redis server certificate.
+
+### `redis_ssl_verify_depth`
+
+| | |
+|--------- | ------------------------ |
+| Syntax:  | *redis_ssl_verify_depth number* |
+| Default: | `redis_ssl_verify_depth 1;` |
+| Context: | *http, server, location* |
+
+Sets the verification depth in the proxied Redis server certificates chain.
+
+### `redis_ssl_trusted_certificate`
+
+| | |
+|--------- | ------------------------ |
+| Syntax:  | *redis_ssl_trusted_certificate file* |
+| Default: | - |
+| Context: | *http, server, location* |
+
+Specifies a file with trusted CA certificates in the PEM format used to verify
+the certificate of the proxied Redis server.
+
+### `redis_ssl_crl`
+
+| | |
+|--------- | ------------------------ |
+| Syntax:  | *redis_ssl_crl file* |
+| Default: | - |
+| Context: | *http, server, location* |
+
+Specifies a file with revoked certificates (CRL) in the PEM format used to verify
+the certificate of the proxied Redis server.
+
+### `redis_ssl_certificate`
+
+| | |
+|--------- | ------------------------ |
+| Syntax:  | *redis_ssl_certificate file* |
+| Default: | - |
+| Context: | *http, server, location* |
+
+Specifies a file with the certificate in the PEM format used for authentication
+to a proxied Redis server.
+
+The value store:uri can be specified instead of the file, which loads a certificate
+with a specified uri from an OpenSSL store.
+
+### `redis_ssl_certificate_key`
+
+| | |
+|--------- | ------------------------ |
+| Syntax:  | *redis_ssl_certificate_key file* |
+| Default: | - |
+| Context: | *http, server, location* |
+
+Specifies a file with the secret key in the PEM format used for authentication to
+a proxied Redis server.
+
+The value `engine:name:id` can be specified instead of the file, which loads a
+secret key with a specified id from the OpenSSL engine name.
+
+The value `store:uri` can be specified instead of the file (1.29.3), which loads
+a secret key with a specified `uri` from an OpenSSL store.
+
+### `redis_ssl_password_file`
+
+| | |
+|--------- | ------------------------ |
+| Syntax:  | *redis_ssl_password_file file* |
+| Default: | - |
+| Context: | *http, server, location* |
+
+Specifies a file with passphrases for secret keys where each passphrase is specified
+on a separate line.  Passphrases are tried in turn when loading the key.
+
+### `redis_ssl_conf_command`
+
+| | |
+|--------- | ------------------------ |
+| Syntax:  | *redis_ssl_conf_command name value* |
+| Default: | - |
+| Context: | *http, server, location* |
+
+Sets arbitrary OpenSSL configuration commands when establishing a connection with the
+proxied Redis server.
+
+The directive is supported when using OpenSSL 1.0.2 or higher.
+
+Several `redis_ssl_conf_command` directives can be specified on the same level.
+These directives are inherited from the previous configuration level if and only if
+there are no `redis_ssl_conf_command` directives defined on the current level.
 
 
 # Variables
