@@ -1,3 +1,11 @@
+Changes with ngx_http_redis 0.4.2                               23 Jul 2026
+
+    *) Bugfix: incorrect length cause a 404 response for an
+       escaped URI.
+
+    *) Add a test for an escaped URI.
+
+
 Changes with ngx_http_redis 0.4.1                               07 Jan 2026
 
     *) Bugfix: fix configuration/merge issues for the `redis_auth'
