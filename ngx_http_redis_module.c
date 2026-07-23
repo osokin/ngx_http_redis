@@ -364,7 +364,7 @@ ngx_http_redis_create_request(ngx_http_request_t *r)
     /* Add "\r\n". */
     *b->last++ = CR; *b->last++ = LF;
 
-    b->last = ngx_sprintf(b->last, "%s$%d%s", REDIS_GET_CMD, vv[2]->len, CRLF);
+    b->last = ngx_sprintf(b->last, "%s$%d%s", REDIS_GET_CMD, vv[2]->len + escape, CRLF);
     /* Get context redis_key from nginx.conf. */
     ctx = ngx_http_get_module_ctx(r, ngx_http_redis_module);
 
