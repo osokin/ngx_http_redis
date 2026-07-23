@@ -27,7 +27,7 @@ plan(skip_all => 'Redis not installed') if $@;
 
 
 my $t = Test::Nginx->new()->has(qw/http/)
-	->has_daemon('redis-server')->plan(6)
+	->has_daemon('redis-server')->plan(7)
 	->write_file_expand('nginx.conf', <<'EOF');
 
 %%TEST_GLOBALS%%
@@ -100,6 +100,7 @@ $t->waitforsocket('127.0.0.1:8081')
 my $r = Redis->new(server => '127.0.0.1:8081');
 $r->set('/' => 'SEE-THIS') or die "can't put value into redis: $!";
 $r->set('/0/' => 'SEE-THIS.0') or die "can't put value into redis: $!";
+$r->set('/file%20sp' => 'SEE-THIS') or die "can't put value into redis: $!";
 
 $r->select("1") or die "can't select db 1 in redis: $!";
 $r->set('/1/' => 'SEE-THIS.1') or die "can't put value into redis: $!";
@@ -116,4 +117,5 @@ like(http_get('/notfound'), qr/404/, 'redis not found');
 
 unlike (http_head('/'), qr/SEE-THIS/, 'redis no data in HEAD');
 
+like(http_get('/file%20sp'), qr/SEE-THIS/, 'redis escaped request /');
 ###############################################################################
