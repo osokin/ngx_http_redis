@@ -461,6 +461,52 @@ http
 
 ```
 
+### Example 5
+
+This example shows how to use advanced features of the module:
+
+- `PUT` request uploads file into the database;
+- `DELETE` request removes file from the database.
+
+```
+% dd if=/dev/urandom of=512M bs=1M count=512
+512+0 records in
+512+0 records out
+536870912 bytes (537 MB, 512 MiB) copied, 1.40662 s, 382 MB/s
+
+% curl -X PUT -T 512M http://127.0.0.1/512M
+
+% valkey-cli
+127.0.0.1:6379> keys "*"
+1) "/512M"
+127.0.0.1:6379> strlen "/512M"
+(integer) 536870912
+127.0.0.1:6379> quit
+
+% curl -v -X DELETE http://127.0.0.1/512M
+*   Trying 127.0.0.1:8888...
+* Connected to 127.0.0.1 (127.0.0.1) port 8888
+> DELETE /512M HTTP/1.1
+> Host: 127.0.0.1:8888
+> User-Agent: curl/8.5.0
+> Accept: */*
+>
+< HTTP/1.1 204 No Content
+< Server: nginx/1.29.8
+< Date: Sat, 25 Jul 2026 22:49:17 GMT
+< Connection: keep-alive
+<
+* Connection #0 to host 127.0.0.1 left intact
+
+% valkey-cli
+127.0.0.1:6379> keys "*"
+(empty array)
+127.0.0.1:6379> quit
+
+%
+```
+
+
 ### Development and testing
 
 1. Clone the [nginx-tests](https://github.com/nginx/nginx-test) repository.
@@ -475,7 +521,7 @@ http
    - redis server;
    - perl;
    - perl module for redis.
- 
+
 
    For FreeBSD ports tree:
 ```
