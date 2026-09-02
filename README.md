@@ -1,7 +1,7 @@
 # NGINX HTTP Redis module
 
 NGINX HTTP Redis module is a dynamic module for [F5 NGINX Plus](https://www.f5.com/products/nginx/nginx-plus), [NGINX](https://nginx.org/),
-that enables advanced caching function with [Redis](https://redis.io/), [Valkey](https://valkey.io/), and other NoSQL databases.
+that enables advanced caching function with [Redis](https://redis.io/), [Valkey](https://valkey.io/), [Dragonfly](https://www.dragonflydb.io/), [KeyDB](https://docs.keydb.dev/).
 
 
 # Support
