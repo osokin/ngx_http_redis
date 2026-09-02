@@ -21,6 +21,9 @@ for the `AUTH`, `GET`, and `SELECT` commands within the
 Support for the `DEL` and `SET` commands is available via `DELETE` and `PUT`
 HTTP methods and through a *commercial subscription*.
 
+Support for the `COPY` and `MOVE` will be available via corresponding HTTP
+methods and through a *commercial subscription*.
+
 
 # Directives
 
