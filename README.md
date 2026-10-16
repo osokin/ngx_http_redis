@@ -9,7 +9,7 @@ and [Valkey](https://valkey.io/).
 
 # Support
 
-Commercial support and professional services is available from [tipi.work](https://tipi.work).
+Commercial support and professional services are available from [tipi.work](https://tipi.work).
 
 
 # Description
@@ -18,11 +18,9 @@ The module currently focuses on core functionality, providing dedicated support
 for the `AUTH`, `GET`, and `SELECT` commands within the
 [Redis protocol](https://redis.io/topics/protocol).
 
-Support for the `DEL` and `SET` commands is available via `DELETE` and `PUT`
-HTTP methods and through a *commercial subscription*.
-
-Support for the `COPY` and `MOVE` will be available via corresponding HTTP
-methods and through a *commercial subscription*.
+Support for the `COPY`, `DEL`, `RENAME`, and `SET` commands are available via
+`COPY`, DELETE`, `MOVE`, and `PUT` HTTP methods correspondingly and through
+a *commercial subscription*.
 
 
 # Directives
