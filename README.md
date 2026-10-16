@@ -19,7 +19,7 @@ for the `AUTH`, `GET`, and `SELECT` commands within the
 [Redis protocol](https://redis.io/topics/protocol).
 
 Support for the `COPY`, `DEL`, `RENAME`, and `SET` commands are available via
-`COPY`, DELETE`, `MOVE`, and `PUT` HTTP methods correspondingly and through
+`COPY`, `DELETE`, `MOVE`, and `PUT` HTTP methods correspondingly and through
 a *commercial subscription*.
 
 
